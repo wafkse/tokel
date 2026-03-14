@@ -31,6 +31,35 @@ use syn::Meta;
 
 use tokel_engine::{expand::Expand, session::Session, syntax::TokelStream};
 
+/// Evaluates and expands Tokel transformations within the provided token stream.
+///
+/// This is the primary entry point for the Tokel macro engine. It recursively
+/// traverses the provided standard Rust code, looking for expansion blocks
+/// denoted by `[< ... >]`.
+///
+/// When an expansion block is encountered, it is evaluated bottom-up (inside-out).
+/// Once the inner tokens are resolved, they are passed through any attached
+/// transformer pipelines (e.g., `:concatenate`, `:case[[pascal]]`) to generate
+/// the final valid Rust code.
+///
+/// Standard Rust code outside of the `[< ... >]` blocks is completely ignored
+/// and passed through unmodified.
+///
+/// # Example
+///
+/// ```rust,ignore
+/// tokel::stream! {
+///     // Concatenates the text and changes it to pascal case
+///     pub struct [< my _ struct >]:concatenate:case[[pascal]] {
+///         pub id: usize,
+///     }
+///
+///     // Works inside standard Rust blocks too
+///     fn print_id() {
+///         let [< my _ variable >]:concatenate = 42;
+///     }
+/// }
+/// ```
 #[proc_macro]
 pub fn stream(input: TokenStream) -> TokenStream {
     TokenStream::from(
@@ -44,6 +73,27 @@ pub fn stream(input: TokenStream) -> TokenStream {
     )
 }
 
+/// Evaluates Tokel transformations strictly within the arguments of an attribute.
+///
+/// Because the Rust compiler evaluates attributes strictly and requires the
+/// attached item (like a `struct` or `fn`) to be valid standard Rust code *before*
+/// expanding macros, Tokel expansion blocks cannot be used directly in struct
+/// or function names without wrapping the entire item in [`tokel::stream!`].
+///
+/// However, if you only need to manipulate tokens *inside* an attribute
+/// (such as `#[doc = ...]`), this macro allows you to do so while keeping the
+/// attached Rust item perfectly clean for tools like `rustfmt`.
+///
+/// # Example
+///
+/// ```rust,ignore
+/// // The `[< ... >]` block inside the doc attribute is expanded,
+/// // and the resulting attribute is applied to `MyStruct`.
+/// #[tokel::attribute(doc = [< "This is a concatenated " "string!" >]:concatenate)]
+/// pub struct MyStruct {
+///     pub value: i32,
+/// }
+/// ```
 #[proc_macro_attribute]
 pub fn attribute(args: TokenStream, input: TokenStream) -> TokenStream {
     let input = proc_macro2::TokenStream::from(input);
