@@ -1,0 +1,16 @@
+[package]
+name = "tokel"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+tokel-derive = { version = "0.1.0", path = "../tokel-derive", optional = true }
+tokel-engine = { version = "0.1.0", path = "../tokel-engine", optional = true }
+
+[features]
+default = ["derive", "engine"]
+
+derive = ["dep:tokel-derive"]
+engine = ["dep:tokel-engine"]
