@@ -16,3 +16,6 @@ version = "1.0"
 [dependencies.syn]
 version = "2.0"
 features = ["clone-impls", "parsing", "extra-traits"]
+
+[dev-dependencies.quote]
+version = "1.0"
