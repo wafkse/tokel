@@ -25,3 +25,15 @@ pub mod syntax;
 pub mod session;
 
 pub mod expand;
+
+pub mod prelude {
+    //! The prelude module of the `tokel-engine` crate.
+
+    pub use crate::transform::{Registry, Transformer};
+
+    pub use crate::expand::Expand;
+
+    pub use crate::session::Session;
+
+    pub use crate::syntax::TokelStream;
+}
