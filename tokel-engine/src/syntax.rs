@@ -163,7 +163,7 @@ impl Parse for Block {
         let stream = {
             let mut token_stream = TokenStream::new();
 
-            token_stream.extend(tree_list.into_iter());
+            token_stream.extend(tree_list);
 
             syn::parse2(token_stream)?
         };
@@ -201,8 +201,7 @@ impl Parse for Element {
                 let mut iter = group.stream().into_iter();
 
                 iter.next()
-                    .map(|first| iter.last().map(|last| (first, last)))
-                    .flatten()
+                    .and_then(|first| iter.last().map(|last| (first, last)))
                     .and_then(|(first, last)| match (first, last) {
                         (TokenTree::Punct(left), TokenTree::Punct(right))
                             if left.as_char() == '<' && right.as_char() == '>' =>
@@ -211,7 +210,7 @@ impl Parse for Element {
                                 (input.peek(Token![:]) && input.peek2(syn::Ident))
                                     .then(|| input.parse::<Pipeline>())
                                     .transpose()
-                                    .map(|pipeline| Element::Block { block, pipeline })
+                                    .map(|pipeline| Self::Block { block, pipeline })
                             }))
                         }
                         _ => None,

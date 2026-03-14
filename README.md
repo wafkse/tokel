@@ -6,7 +6,7 @@
 
 ## The Expansion Model
 
-*Tokel* takes a singular top-level token-stream (a "TokelStream" in the formal grammar definition) and performs recursive  descent to find and evaluate these blocks.
+*Tokel* takes a singular top-level token-stream (a "`TokelStream`" in the formal grammar definition) and performs recursive  descent to find and evaluate these blocks.
 
 Expansion blocks are denoted by `[< ... >]`. Any tokens outside of an expansion block are ignored and emitted as-is.
 

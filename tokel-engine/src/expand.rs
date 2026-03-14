@@ -25,6 +25,10 @@ pub trait Expand {
     /// This is the core evaluation method. It traverses the node, looking up and
     /// applying any transformers from the provided [`Session`], and utilizing the
     /// provided `context` to complete its evaluation.
+    ///
+    /// # Errors
+    ///
+    /// The failure mode of this associated function is implementation-dependent.
     fn expand_with(
         self,
         session: &mut Session,
@@ -36,6 +40,10 @@ pub trait Expand {
     /// This is a convenience method available for nodes that do not require complex
     /// external context (i.e., where `Context` implements `Default`, such as `()`).
     /// It automatically calls [`expand_with`](Self::expand_with) using the default context.
+    ///
+    /// # Errors
+    ///
+    /// The failure mode of this associated function is implementation-dependent.
     fn expand(self, session: &mut Session) -> Result<TokenStream, syn::Error>
     where
         Self::Context: Default,
@@ -51,7 +59,7 @@ impl Expand for TokelStream {
     fn expand_with(
         self,
         session: &mut Session,
-        _: Self::Context,
+        (): Self::Context,
     ) -> Result<TokenStream, syn::Error> {
         let Self(input_vector) = self;
 
@@ -71,18 +79,18 @@ impl Expand for Element {
     fn expand_with(
         self,
         session: &mut Session,
-        _: Self::Context,
+        (): Self::Context,
     ) -> Result<TokenStream, syn::Error> {
         match self {
-            Element::Block {
+            Self::Block {
                 block: Block { stream, .. },
                 pipeline: Some(pipeline),
             } => pipeline.expand_with(session, stream),
-            Element::Block {
+            Self::Block {
                 pipeline: None,
                 block: Block { stream, .. },
             } => stream.expand(session),
-            Element::Tree(tokel_tree) => tokel_tree.expand(session),
+            Self::Tree(tokel_tree) => tokel_tree.expand(session),
         }
     }
 }
@@ -93,18 +101,18 @@ impl Expand for TokelTree {
     fn expand_with(
         self,
         session: &mut Session,
-        _: Self::Context,
+        (): Self::Context,
     ) -> Result<TokenStream, syn::Error> {
         match self {
-            TokelTree::Group(tokel_group) => tokel_group.expand(session),
+            Self::Group(tokel_group) => tokel_group.expand(session),
             tree => {
                 let mut stream = TokenStream::new();
 
                 stream.extend(iter::once(match tree {
-                    TokelTree::Ident(ident) => TokenTree::Ident(ident),
-                    TokelTree::Literal(literal) => TokenTree::Literal(literal),
-                    TokelTree::Punct(punct) => TokenTree::Punct(punct),
-                    TokelTree::Group(..) => unreachable!(),
+                    Self::Ident(ident) => TokenTree::Ident(ident),
+                    Self::Literal(literal) => TokenTree::Literal(literal),
+                    Self::Punct(punct) => TokenTree::Punct(punct),
+                    Self::Group(..) => unreachable!(),
                 }));
 
                 Ok(stream)
@@ -119,7 +127,7 @@ impl Expand for TokelGroup {
     fn expand_with(
         self,
         session: &mut Session,
-        _: Self::Context,
+        (): Self::Context,
     ) -> Result<TokenStream, syn::Error> {
         let Self {
             delimiter,
@@ -155,7 +163,7 @@ impl Expand for Pipeline {
             ref name, argument, ..
         } in pipe_list
         {
-            let ref target_name = Cow::Owned(Ident::to_string(name));
+            let target_name = &Cow::Owned(Ident::to_string(name));
 
             let argument = if let Some((.., argument)) = argument {
                 argument.expand(session)

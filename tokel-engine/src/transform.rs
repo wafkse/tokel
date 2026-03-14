@@ -39,6 +39,10 @@ pub trait Transformer: Any {
     /// is invalid.
     ///
     /// [token stream]: TokenStream
+    ///
+    /// # Errors
+    ///
+    /// The failure mode of this associated function is implementation-dependent.
     fn transform(&mut self, input: TokenStream, argument: TokenStream) -> syn::Result<TokenStream>;
 }
 
@@ -53,11 +57,12 @@ pub trait Transformer: Any {
 /// Raw identifiers (e.g., `r#case`) have their `r#` prefix stripped before lookup.
 ///
 /// Therefore, transformer names registered here should typically be exact,
-/// *snake_case* string literals matching the intended syntax.
+/// `snake_case` string literals matching the intended syntax.
 pub struct Registry(AHashMap<Cow<'static, str>, Box<dyn Transformer>>);
 
 impl Registry {
     /// Creates an empty [`Registry`].
+    #[must_use]
     pub fn empty() -> Self {
         Self(AHashMap::new())
     }
@@ -78,11 +83,10 @@ impl Registry {
 
     /// Attempts to insert a [`Transformer`] into the [`Registry`].
     ///
-    /// # Failure
+    /// # Errors
     ///
     /// This will fail if another [`Transformer`] with the same name has already been registered.
     #[inline]
-    #[must_use]
     pub fn try_insert<S, T>(
         &mut self,
         name: S,
@@ -108,7 +112,7 @@ impl Deref for Registry {
 
     #[inline]
     fn deref(&self) -> &Self::Target {
-        let &Self(ref target_value) = self;
+        let Self(target_value) = self;
 
         target_value
     }
@@ -117,7 +121,7 @@ impl Deref for Registry {
 impl DerefMut for Registry {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
-        let &mut Self(ref mut target_value) = self;
+        let Self(target_value) = self;
 
         target_value
     }
@@ -125,7 +129,7 @@ impl DerefMut for Registry {
 
 impl Default for Registry {
     fn default() -> Self {
-        let mut target_value = Registry::empty();
+        let mut target_value = Self::empty();
 
         let _ = target_value.insert("identity", Identity);
 
@@ -139,9 +143,9 @@ impl fmt::Debug for Registry {
 
         let mut target_state = f.debug_map();
 
-        for (entry_key, entry_transformer) in target_value.iter() {
+        for (entry_key, entry_transformer) in target_value {
             // NOTE: We don't know anything about the Transformer but its address, so let's mention it.
-            let ref target_value = format_args!(
+            let target_value = &format_args!(
                 "<transformer at {:#x}>",
                 ptr::from_ref(entry_transformer).addr()
             );

@@ -64,8 +64,7 @@ use tokel_engine::{expand::Expand, session::Session, syntax::TokelStream};
 pub fn stream(input: TokenStream) -> TokenStream {
     TokenStream::from(
         match syn::parse::<TokelStream>(input)
-            .map(|target_value| target_value.expand(&mut Session::new()))
-            .flatten()
+            .and_then(|target_value| target_value.expand(&mut Session::new()))
         {
             Ok(target_value) => target_value,
             Err(target_error) => target_error.into_compile_error(),
@@ -100,8 +99,7 @@ pub fn attribute(args: TokenStream, input: TokenStream) -> TokenStream {
 
     TokenStream::from(match syn::parse::<Meta>(args) {
         Ok(target_meta) => match syn::parse2::<TokelStream>(target_meta.into_token_stream())
-            .map(|target_value| target_value.expand(&mut Session::new()))
-            .flatten()
+            .and_then(|target_value| target_value.expand(&mut Session::new()))
         {
             Ok(target_value) => quote! {
                 #[#target_value]

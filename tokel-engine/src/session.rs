@@ -35,7 +35,7 @@ impl Session {
     /// and then pass it into the session for execution.
     #[inline]
     #[must_use]
-    pub fn new_with(registry: Registry) -> Self {
+    pub const fn new_with(registry: Registry) -> Self {
         Self(registry)
     }
 
@@ -54,7 +54,7 @@ impl Session {
     #[inline]
     #[must_use]
     pub const fn registry(&self) -> &Registry {
-        let &Self(ref target_value) = self;
+        let Self(target_value) = self;
 
         target_value
     }
@@ -66,7 +66,7 @@ impl Session {
     #[inline]
     #[must_use]
     pub const fn registry_mut(&mut self) -> &mut Registry {
-        let &mut Self(ref mut target_value) = self;
+        let Self(target_value) = self;
 
         target_value
     }
