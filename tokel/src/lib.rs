@@ -44,3 +44,6 @@ pub mod derive {
 
     pub use tokel_derive::*;
 }
+
+#[doc(inline)]
+pub use crate::derive::{attribute, stream};

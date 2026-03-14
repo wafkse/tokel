@@ -28,13 +28,15 @@
 //! code, `None`-delimited macro capture groups, or even inside transformer arguments, are
 //! accurately located and represented in the final AST.
 
+use std::{iter, ops::Not};
+
 use syn::{
     Token,
     parse::{Parse, ParseStream, discouraged::Speculative},
     token::Bracket,
 };
 
-use proc_macro2::{Delimiter, Ident, Literal, Punct, TokenTree, extra::DelimSpan};
+use proc_macro2::{Delimiter, Ident, Literal, Punct, Span, TokenStream, TokenTree};
 
 /// The `:`-punctuated sequence of [`Pipe`], to form a complete pipeline for an expansion block.
 #[derive(Debug, Clone)]
@@ -130,15 +132,46 @@ pub struct Block {
     pub stream: TokelStream,
 
     /// The greater-than token part of this expansion block.
-    pub gt_token: Token![<],
+    pub gt_token: Token![>],
 }
 
 impl Parse for Block {
     fn parse(input: ParseStream) -> syn::Result<Self> {
+        let lt_token = input.parse()?;
+
+        let mut tree_list = Vec::new();
+
+        while input.is_empty().not() {
+            tree_list.push(input.parse::<TokenTree>()?);
+        }
+
+        let Some(last_tree) = tree_list.pop() else {
+            return Err(syn::Error::new_spanned(
+                lt_token,
+                "missmatched chevron token",
+            ));
+        };
+
+        let gt_token = {
+            let mut token_stream = TokenStream::new();
+
+            token_stream.extend(iter::once(last_tree));
+
+            syn::parse2(token_stream)?
+        };
+
+        let stream = {
+            let mut token_stream = TokenStream::new();
+
+            token_stream.extend(tree_list.into_iter());
+
+            syn::parse2(token_stream)?
+        };
+
         Ok(Self {
-            lt_token: input.parse()?,
-            stream: input.parse()?,
-            gt_token: input.parse()?,
+            lt_token,
+            stream,
+            gt_token,
         })
     }
 }
@@ -187,7 +220,7 @@ impl Parse for Element {
                     .transpose()?
                     .unwrap_or_else(|| {
                         let (delimiter, span, tokens) =
-                            (group.delimiter(), group.delim_span(), group.stream());
+                            (group.delimiter(), group.span(), group.stream());
 
                         let stream = syn::parse2(tokens)?;
 
@@ -239,7 +272,7 @@ pub struct TokelGroup {
     pub delimiter: Delimiter,
 
     /// A delimiter span.
-    pub span: DelimSpan,
+    pub span: Span,
 
     /// The tokel-specific token-stream that this tokel-group embeds.
     pub stream: TokelStream,
