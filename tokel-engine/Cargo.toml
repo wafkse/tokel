@@ -6,3 +6,10 @@ authors.workspace = true
 license.workspace = true
 
 [dependencies]
+
+[dependencies.proc-macro2]
+version = "1.0"
+
+[dependencies.syn]
+version = "2.0"
+features = ["clone-impls", "parsing", "extra-traits"]
