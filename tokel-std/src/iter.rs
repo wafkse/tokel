@@ -257,6 +257,12 @@ impl Transformer for Sequence {
 }
 
 /// Inserts all `iter`-related [`Transformer`]s into the specified [`Registry`].
+///
+/// # Errors
+///
+/// This will fail if at least one standard `iter`-related [`Transformer`] is already present by-name in the [`Registry`].
+///
+/// On failure, there is no guarantee that other non-colliding transformers have not been registered.
 #[inline]
 pub fn register(registry: &mut Registry) -> Result<(), Box<dyn Transformer>> {
     registry

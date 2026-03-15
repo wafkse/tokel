@@ -51,10 +51,7 @@ impl Transformer for Concatenate {
         let parsed_ident = syn::parse_str::<Ident>(&concatenated_string).map_err(|_| {
             syn::Error::new(
                 first_span,
-                format!(
-                    "Concatenated string `{}` is not a valid identifier",
-                    concatenated_string
-                ),
+                format!("concatenated string `{concatenated_string}` is not a valid identifier"),
             )
         })?;
 
@@ -63,6 +60,12 @@ impl Transformer for Concatenate {
 }
 
 /// Inserts all `string`-related [`Transformer`]s into the specified [`Registry`].
+///
+/// # Errors
+///
+/// This will fail if at least one standard `string`-related [`Transformer`] is already present by-name in the [`Registry`].
+///
+/// On failure, there is no guarantee that other non-colliding transformers have not been registered.
 #[inline]
 pub fn register(registry: &mut Registry) -> Result<(), Box<dyn Transformer>> {
     registry

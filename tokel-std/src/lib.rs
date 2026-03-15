@@ -29,6 +29,12 @@ pub mod structure;
 pub mod state;
 
 /// Register all the standard [`Transformer`] implementations
+///
+/// # Errors
+///
+/// This will fail if at least one standard [`Transformer`] is already present by-name in the [`Registry`].
+///
+/// On failure, there is no guarantee that other non-colliding transformers have not been registered.
 #[inline]
 pub fn register(registry: &mut Registry) -> Result<(), Box<dyn Transformer>> {
     string::register(registry)?;

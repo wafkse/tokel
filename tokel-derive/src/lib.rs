@@ -66,9 +66,8 @@ pub fn stream(input: TokenStream) -> TokenStream {
         match syn::parse::<TokelStream>(input).and_then(|target_value| {
             let mut session = Session::new();
 
-            tokel_std::register(session.registry_mut())
-                .map_err(|_| ())
-                .expect("failed to register");
+            // NOTE: Just ignore, the registry is empty so it is infallible.
+            let _ = tokel_std::register(session.registry_mut());
 
             target_value.expand(&mut session)
         }) {
@@ -99,6 +98,8 @@ pub fn stream(input: TokenStream) -> TokenStream {
 ///     pub value: i32,
 /// }
 /// ```
+///
+/// [`tokel::stream!`]: stream
 #[proc_macro_attribute]
 pub fn attribute(args: TokenStream, input: TokenStream) -> TokenStream {
     let input = proc_macro2::TokenStream::from(input);
@@ -108,9 +109,8 @@ pub fn attribute(args: TokenStream, input: TokenStream) -> TokenStream {
             .and_then(|target_value| {
                 let mut session = Session::new();
 
-                tokel_std::register(session.registry_mut())
-                    .map_err(|_| ())
-                    .expect("failed to register");
+                // NOTE: Just ignore, the registry is empty so it is infallible.
+                let _ = tokel_std::register(session.registry_mut());
 
                 target_value.expand(&mut session)
             }) {

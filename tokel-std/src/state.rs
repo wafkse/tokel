@@ -27,6 +27,13 @@ impl Transformer for Enumerate {
     }
 }
 
+/// Inserts all `state`-related [`Transformer`]s into the specified [`Registry`].
+///
+/// # Errors
+///
+/// This will fail if at least one standard `state`-related [`Transformer`] is already present by-name in the [`Registry`].
+///
+/// On failure, there is no guarantee that other non-colliding transformers have not been registered.
 #[inline]
 pub fn register(registry: &mut Registry) -> Result<(), Box<dyn Transformer>> {
     registry
