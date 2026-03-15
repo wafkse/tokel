@@ -1,5 +1,10 @@
 [package]
 name = "tokel"
+description = "A declarative, pipeline-based templating engine for simplifying Rust procedural macros."
+keywords = ["proc-macro", "macro", "metaprogramming", "templating", "tokenstream"]
+categories = ["development-tools::procedural-macro-helpers", "development-tools::build-utils"]
+readme = "README.md"
+repository.workspace = true
 version.workspace = true
 edition.workspace = true
 authors.workspace = true

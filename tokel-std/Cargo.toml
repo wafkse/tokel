@@ -1,5 +1,10 @@
 [package]
 name = "tokel-std"
+description = "A standard library of built-in TokenStream transformers for the Tokel engine."
+keywords = ["transformers", "utilities", "proc-macro", "tokel"]
+categories = ["development-tools::procedural-macro-helpers", "development-tools::build-utils"]
+readme = "README.md"
+repository.workspace = true
 version.workspace = true
 edition.workspace = true
 authors.workspace = true

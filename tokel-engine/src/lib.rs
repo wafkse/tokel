@@ -16,7 +16,7 @@
 //!
 //! *The following is the main `tokel` workspace documentation:*
 //!
-#![doc = include_str!("../../README.md")]
+#![doc = include_str!("../README.md")]
 
 pub mod transform;
 

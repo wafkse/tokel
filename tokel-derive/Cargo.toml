@@ -1,5 +1,10 @@
 [package]
 name = "tokel-derive"
+description = "Procedural macro entry points and derive implementations for the Tokel templating engine."
+keywords = ["parsing", "ast", "evaluation", "metaprogramming", "tokel"]
+categories = ["development-tools::procedural-macro-helpers", "development-tools::build-utils"]
+readme = "README.md"
+repository.workspace = true
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
