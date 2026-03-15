@@ -8,6 +8,7 @@
     rustdoc::all,
     unsafe_code
 )]
+#![cfg_attr(not(feature = "engine"), no_std)]
 //! # `tokel`
 //!
 //! `tokel` is a facade crate that re-exports both `tokel-engine` and `tokel-derive`
@@ -16,6 +17,8 @@
 //! * `tokel-engine`: enabled via the `engine` feature.
 //! * `tokel-derive`: enabled via the `derive` feature (default). The `tokel::stream!` and `tokel::item!`
 //!   macros are re-exported at the crate root for usability.
+//!
+//! This crate is `no_std` by default when the `engine` feature is disabled.
 //!
 //! ---
 //!

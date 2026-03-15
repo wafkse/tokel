@@ -1,19 +1,12 @@
 [package]
-name = "tokel-derive"
+name = "tokel-std"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
 
-[lib]
-proc-macro = true
-
 [dependencies]
 tokel-engine = { version = "0.1.0", path = "../tokel-engine" }
-tokel-std = { version = "0.1.0", path = "../tokel-std" }
-
-[dependencies.quote]
-version = "1.0"
 
 [dependencies.proc-macro2]
 version = "1.0"
@@ -21,3 +14,6 @@ version = "1.0"
 [dependencies.syn]
 version = "2.0"
 features = ["clone-impls", "parsing", "extra-traits"]
+
+[dependencies.quote]
+version = "1.0"

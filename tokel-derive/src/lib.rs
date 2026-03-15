@@ -63,9 +63,15 @@ use tokel_engine::{expand::Expand, session::Session, syntax::TokelStream};
 #[proc_macro]
 pub fn stream(input: TokenStream) -> TokenStream {
     TokenStream::from(
-        match syn::parse::<TokelStream>(input)
-            .and_then(|target_value| target_value.expand(&mut Session::new()))
-        {
+        match syn::parse::<TokelStream>(input).and_then(|target_value| {
+            let mut session = Session::new();
+
+            tokel_std::register(session.registry_mut())
+                .map_err(|_| ())
+                .expect("failed to register");
+
+            target_value.expand(&mut session)
+        }) {
             Ok(target_value) => target_value,
             Err(target_error) => target_error.into_compile_error(),
         },
@@ -99,8 +105,15 @@ pub fn attribute(args: TokenStream, input: TokenStream) -> TokenStream {
 
     TokenStream::from(match syn::parse::<Meta>(args) {
         Ok(target_meta) => match syn::parse2::<TokelStream>(target_meta.into_token_stream())
-            .and_then(|target_value| target_value.expand(&mut Session::new()))
-        {
+            .and_then(|target_value| {
+                let mut session = Session::new();
+
+                tokel_std::register(session.registry_mut())
+                    .map_err(|_| ())
+                    .expect("failed to register");
+
+                target_value.expand(&mut session)
+            }) {
             Ok(target_value) => quote! {
                 #[#target_value]
                 #input
