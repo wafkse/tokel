@@ -157,8 +157,6 @@ impl Expand for Pipeline {
     ) -> Result<TokenStream, syn::Error> {
         let mut input = body.expand(session)?;
 
-        dbg!(&session);
-
         let Self(pipe_list) = self;
 
         for Pipe {
