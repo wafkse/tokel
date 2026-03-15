@@ -14,8 +14,8 @@
 //! when the appropriate crate features have been selected.
 //!
 //! * `tokel-engine`: enabled via the `engine` feature.
-//! * `tokel-derive`: enabled via the `derive` feature (default). The `tokel::stream!`
-//!   macro is re-exported at the crate root for usability.
+//! * `tokel-derive`: enabled via the `derive` feature (default). The `tokel::stream!` and `tokel::item!`
+//!   macros are re-exported at the crate root for usability.
 //!
 //! ---
 //!
