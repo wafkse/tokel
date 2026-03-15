@@ -47,10 +47,14 @@ use tokel_engine::{expand::Expand, session::Session, syntax::TokelStream};
 ///
 /// # Example
 ///
-/// ```rust,ignore
+/// ```rust
+/// # mod tokel {
+/// #   pub use tokel_derive::stream;
+/// # }
+///
 /// tokel::stream! {
 ///     // Concatenates the text and changes it to pascal case
-///     pub struct [< my _ struct >]:concatenate:case[[pascal]] {
+///     pub struct [< _ Struct >]:push_left[[My]]:concatenate {
 ///         pub id: usize,
 ///     }
 ///
@@ -90,10 +94,14 @@ pub fn stream(input: TokenStream) -> TokenStream {
 ///
 /// # Example
 ///
-/// ```rust,ignore
+/// ```rust
+/// # mod tokel {
+/// #   pub use tokel_derive::attribute;
+/// # }
+///
 /// // The `[< ... >]` block inside the doc attribute is expanded,
 /// // and the resulting attribute is applied to `MyStruct`.
-/// #[tokel::attribute(doc = [< "This is a concatenated " "string!" >]:concatenate)]
+/// #[tokel::attribute(doc = concat!("This is a concatenated ","string for ", stringify!([< My Struct >]:concatenate)))]
 /// pub struct MyStruct {
 ///     pub value: i32,
 /// }
