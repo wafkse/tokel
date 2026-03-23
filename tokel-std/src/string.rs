@@ -1,8 +1,15 @@
 //! String and text-manipulation Tokel [`Transformer`]s.
 
-use proc_macro2::{Ident, Span, TokenStream};
+use std::str::FromStr;
 
-use syn::parse::Nothing;
+use heck::{AsLowerCamelCase, AsPascalCase, AsSnekCase};
+use proc_macro2::{Group, Ident, Span, TokenStream, TokenTree};
+
+use quote::ToTokens;
+use syn::{
+    Lit,
+    parse::{Nothing, Parse, ParseStream},
+};
 
 use tokel_engine::prelude::{Registry, Transformer};
 
@@ -12,6 +19,7 @@ use tokel_engine::prelude::{Registry, Transformer};
 /// of the tokens together.
 ///
 /// # Example
+///
 /// `[< hello _ world >]:concatenate` -> `hello_world`
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Concatenate;
@@ -59,6 +67,101 @@ impl Transformer for Concatenate {
     }
 }
 
+/// A transformer that changes the case of incoming identifiers, as instructed.
+///
+/// # Example
+///
+/// `[< hello _ world >]:case[[pascal]]` -> `Hello _ World`
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Case;
+
+impl Transformer for Case {
+    fn transform(&mut self, input: TokenStream, argument: TokenStream) -> syn::Result<TokenStream> {
+        #[derive(Debug, Copy, Clone)]
+        enum Target {
+            Pascal,
+            Camel,
+            Snake,
+        }
+
+        impl Parse for Target {
+            fn parse(input: ParseStream) -> syn::Result<Self> {
+                let case_ident = input.parse::<Ident>()?;
+
+                let _: Nothing = input.parse()?;
+
+                Ok(match case_ident.to_string().as_str() {
+                    "pascal" => Self::Pascal,
+                    "camel" => Self::Camel,
+                    "snake" => Self::Snake,
+                    _ => return Err(syn::Error::new_spanned(case_ident, "unsupported case")),
+                })
+            }
+        }
+
+        let target_case: Target = syn::parse2(argument)?;
+
+        fn apply_case(string: String, case: Target) -> String {
+            match case {
+                Target::Pascal => AsPascalCase(string).to_string(),
+                Target::Camel => AsLowerCamelCase(string).to_string(),
+                Target::Snake => AsSnekCase(string).to_string(),
+            }
+        }
+
+        fn apply(input: TokenStream, case: Target) -> syn::Result<TokenStream> {
+            input
+                .into_iter()
+                .try_fold(TokenStream::new(), |mut acc, target_tree| {
+                    let target_output = match target_tree {
+                        TokenTree::Literal(target_lit) => {
+                            match syn::parse2::<Lit>(target_lit.into_token_stream())? {
+                                Lit::Str(inner) => {
+                                    TokenStream::from_str(apply_case(inner.value(), case).as_str())?
+                                }
+                                Lit::Bool(lit) => TokenStream::from_str(
+                                    apply_case(lit.value.to_string(), case).as_str(),
+                                )?,
+
+                                lit @ _ => lit.into_token_stream(),
+                            }
+                        }
+                        TokenTree::Ident(target_ident) => TokenStream::from_str(
+                            apply_case(target_ident.to_string(), case).as_str(),
+                        )?,
+                        TokenTree::Group(group) => group
+                            .stream()
+                            .into_iter()
+                            .map(|tree| apply(tree.into_token_stream(), case))
+                            .try_fold(TokenStream::new(), |mut acc, result| {
+                                result.map(|stream| {
+                                    acc.extend(stream);
+                                    acc
+                                })
+                            })
+                            .map(|a| {
+                                let mut new_group = Group::new(group.delimiter(), a);
+
+                                new_group.set_span(group.span());
+
+                                new_group
+                            })
+                            .map(TokenTree::Group)
+                            .map(ToTokens::into_token_stream)?,
+
+                        target_tree @ _ => target_tree.into_token_stream(),
+                    };
+
+                    acc.extend(target_output);
+
+                    Ok(acc)
+                })
+        }
+
+        apply(input, target_case)
+    }
+}
+
 /// Inserts all `string`-related [`Transformer`]s into the specified [`Registry`].
 ///
 /// # Errors
@@ -71,7 +174,12 @@ pub fn register(registry: &mut Registry) -> Result<(), Box<dyn Transformer>> {
     registry
         .try_insert("concatenate", Concatenate)
         .map_err(Box::new)
-        .map_err(|target_value| target_value as Box<dyn Transformer>)?;
+        .map_err(|t| t as Box<dyn Transformer>)?;
+
+    registry
+        .try_insert("case", Case)
+        .map_err(Box::new)
+        .map_err(|t| t as Box<dyn Transformer>)?;
 
     Ok(())
 }
