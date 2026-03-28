@@ -1,258 +1,390 @@
 //! Iteration-related Tokel [`Transformer`]s.
+//!
+//! # Available Transformers
+//!
+//! | Transformer         | Argument Type         | Description |
+//! |---------------------|----------------------|-------------|
+//! | [`Reverse`]         | [`syn::parse::Nothing`]     | Reverses the sequence of token trees. |
+//! | [`Intersperse`]     | [`TokenTree`]        | Inserts a token-tree between each token-tree in the input. |
+//! | [`PushLeft`]        | [`TokenStream`]      | Prepends a token stream to the input. |
+//! | [`PushRight`]       | [`TokenStream`]      | Appends a token stream to the input. |
+//! | [`PopLeft`]         | [`syn::parse::Nothing`]     | Removes the first token tree from the stream. |
+//! | [`PopRight`]        | [`syn::parse::Nothing`]     | Removes the last token tree from the stream. |
+//! | [`Take`]            | [`syn::LitInt`]      | Keeps only the first `N` tokens from the stream. |
+//! | [`Skip`]            | [`syn::LitInt`]      | Discards the first `N` tokens from the stream. |
+//! | [`Repeat`]          | [`syn::LitInt`]      | Duplicates the input stream `N` times. |
+//! | [`Count`]           | [`syn::parse::Nothing`]     | Emits the number of token trees present in the stream. |
+//! | [`Sequence`]        | [`SequenceRange`]    | Generates a sequence of integers based on a provided range. |
+//!
+//! # Argument Types
+//!
+//! - [`syn::parse::Nothing`]: No argument required.
+//! - [`TokenTree`]: A single token tree (e.g., a punctuation, identifier, etc.).
+//! - [`TokenStream`]: A sequence of token trees.
+//! - [`syn::LitInt`]: An integer literal (e.g., `[[ 3 ]]`).
+//! - [`SequenceRange`]: A Rust range literal (e.g., `[[ 1..=3 ]]`).
+//!
+//! # Examples
+//!
+//! - `[< a b c >]:reverse` → `c b a`
+//! - `[< a b c >]:intersperse[[,]]` → `a , b , c`
+//! - `[< b c >]:push_left[[a]]` → `a b c`
+//! - `[< a b c >]:pop_right` → `a b`
+//! - `[< a b c >]:take[[2]]` → `a b`
+//! - `[< a b c >]:skip[[1]]` → `b c`
+//! - `[< a b >]:repeat[[3]]` → `a b a b a b`
+//! - `[< a b c >]:count` → `3`
+//! - `[< >]:sequence[[ 1..=3 ]]` → `1 2 3`
+//!
+//! * Transformers can be nested or composed by evaluating other transformers inside arguments:
+//!
+//! - `[< a b c >]:intersperse[[[< x y >]:reverse]]` → `a y x b y x c`
+//! - `[< a b c >]:push_left[[[< x y >]:reverse]]` → `y x a b c`
+//! - `[< a b c >]:push_right[[[< d e >]:take[[1]]]]` → `a b c d`
+//! - `[< 1 2 3 >]:take[[[< 2 1 >]:reverse:take[[1]]]]` → `1 2`
+//! - `[< a b c >]:repeat[[[< 2 1 >]:count]]` → `a b c a b c`
+//! - `[< >]:sequence[[[< 1 4 >]:reverse:take[[1]]..4]]` → `3 4 5 6`
 
-use std::{iter, ops::Range};
+use std::{
+    iter,
+    ops::{Range, RangeInclusive},
+};
 
 use proc_macro2::{Literal, TokenStream, TokenTree};
-use syn::{
-    LitInt, Token,
-    parse::{Nothing, Parse, ParseStream},
-};
-use tokel_engine::prelude::{Registry, Transformer};
 
-/// A transformer that reverses the sequence of the token trees in the stream.
+use quote::ToTokens;
+
+use syn::{
+    Token,
+    parse::{Parse, ParseStream},
+};
+
+use tokel_engine::prelude::{Pass, Registry, Transformer};
+
+/// Reverses the sequence of token trees in the stream.
+///
+/// # Arguments
+///
+/// This does not take any argument.
 ///
 /// # Example
-/// `[< a b c >]:reverse` -> `c b a`
+///
+/// `[< a b c >]:reverse` → `c b a`
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Reverse;
 
-impl Transformer for Reverse {
-    fn transform(
-        &mut self,
-        input: TokenStream,
-        argument: TokenStream,
-    ) -> Result<TokenStream, syn::Error> {
-        let _: Nothing = syn::parse2(argument)?;
+impl Pass for Reverse {
+    type Argument = syn::parse::Nothing;
 
-        let mut tokens: Vec<_> = input.into_iter().collect();
-
-        tokens.reverse();
-
-        Ok(tokens.into_iter().collect())
+    fn through(&mut self, input: TokenStream, _: Self::Argument) -> syn::Result<TokenStream> {
+        Ok(input
+            .into_iter()
+            .collect::<Vec<TokenTree>>()
+            .into_iter()
+            .rev()
+            .collect::<TokenStream>())
     }
 }
 
-/// Inserts the argument between every token tree in the input.
+/// Inserts the provided token-tree in between each token-tree in the input.
+///
+/// # Arguments
+///
+/// This takes a singular [`TokenTree`] as argument.
+///
+/// # Example
+///
+/// `[< a b c >]:intersperse[[,]]` → `a , b , c`
+///
+/// *NOTE*: Most tokens will be preserved *verbatim*, including any span-related information.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Intersperse;
 
-impl Transformer for Intersperse {
-    fn transform(
+impl Pass for Intersperse {
+    type Argument = TokenTree;
+
+    fn through(
         &mut self,
         input: TokenStream,
-        argument: TokenStream,
-    ) -> Result<TokenStream, syn::Error> {
-        let mut output = TokenStream::new();
-        let mut iter = input.into_iter().peekable();
+        intersperse_tree: Self::Argument,
+    ) -> syn::Result<TokenStream> {
+        let mut target_output = TokenStream::new();
 
-        while let Some(tree) = iter.next() {
-            output.extend(iter::once(tree));
+        let mut target_iter = input.into_iter().into_iter().peekable();
 
-            if iter.peek().is_some() {
-                output.extend(argument.clone());
-            }
+        while let Some(target_tree) = target_iter.next() {
+            let target_list = [
+                Some(target_tree),
+                if let Some(..) = target_iter.peek() {
+                    let intersperse_tree = intersperse_tree.clone();
+
+                    Some(intersperse_tree)
+                } else {
+                    None
+                },
+            ];
+
+            target_output.extend(target_list.into_iter().flatten());
         }
 
-        Ok(output)
+        Ok(target_output)
     }
 }
 
-/// Prepends the argument to the start of the stream.
+/// Pushes the provided token stream to the start (*left*) of the input token stream.
+///
+/// # Arguments
+///
+/// This takes a singular [`TokenStream`] as argument.
+///
+/// # Example
+///
+/// `[< b c >]:push_left[[a]]` → `a b c`
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PushLeft;
 
-impl Transformer for PushLeft {
-    fn transform(
-        &mut self,
-        input: TokenStream,
-        argument: TokenStream,
-    ) -> Result<TokenStream, syn::Error> {
-        let mut output = argument;
+impl Pass for PushLeft {
+    type Argument = TokenStream;
 
-        output.extend(input);
-
-        Ok(output)
+    fn through(&mut self, input: TokenStream, left: Self::Argument) -> syn::Result<TokenStream> {
+        Ok(iter::chain(left, input).collect::<TokenStream>())
     }
 }
 
-/// Removes the last token tree from the stream (useful for trailing commas).
+/// Removes the last token tree from the stream (useful for trailing commas or other garbage).
+///
+/// # Arguments
+///
+/// This does not take any argument.
+///
+/// # Example
+///
+/// `[< a b c >]:pop_right` → `a b`
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PopRight;
 
-impl Transformer for PopRight {
-    fn transform(
-        &mut self,
-        input: TokenStream,
-        argument: TokenStream,
-    ) -> Result<TokenStream, syn::Error> {
-        let _: Nothing = syn::parse2(argument)?;
+impl Pass for PopRight {
+    type Argument = syn::parse::Nothing;
 
-        let mut tokens: Vec<_> = input.into_iter().collect();
+    fn through(&mut self, input: TokenStream, _: Self::Argument) -> syn::Result<TokenStream> {
+        let mut target_list = input.into_iter().collect::<Vec<TokenTree>>();
 
-        tokens.pop(); // Discard the last token
+        let _ = target_list.pop();
 
-        Ok(tokens.into_iter().collect())
+        Ok(target_list.into_iter().collect::<TokenStream>())
     }
 }
 
-/// Appends the argument to the end of the stream.
+/// Appends the provided token stream to the end (*right*) of the input token stream.
+///
+/// # Arguments
+///
+/// This takes a singular [`TokenStream`] as argument.
+///
+/// # Example
+///
+/// `[< a b >]:push_right[[c]]` → `a b c`
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PushRight;
 
-impl Transformer for PushRight {
-    fn transform(
-        &mut self,
-        mut input: TokenStream,
-        argument: TokenStream,
-    ) -> Result<TokenStream, syn::Error> {
-        input.extend(argument);
-        Ok(input)
+impl Pass for PushRight {
+    type Argument = TokenStream;
+
+    fn through(&mut self, input: TokenStream, right: Self::Argument) -> syn::Result<TokenStream> {
+        Ok(iter::chain(input, right).collect::<TokenStream>())
     }
 }
 
 /// Removes the first token tree from the stream.
+///
+/// # Arguments
+///
+/// This does not take any argument.
+///
+/// # Example
+///
+/// * `[< a b c >]:pop_left` → `b c`
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PopLeft;
 
-impl Transformer for PopLeft {
-    fn transform(
-        &mut self,
-        input: TokenStream,
-        argument: TokenStream,
-    ) -> Result<TokenStream, syn::Error> {
-        let _: Nothing = syn::parse2(argument)?;
+impl Pass for PopLeft {
+    type Argument = syn::parse::Nothing;
 
-        let mut iter = input.into_iter();
-        iter.next(); // Discard the first token
-
-        Ok(iter.collect())
+    fn through(&mut self, input: TokenStream, _: Self::Argument) -> syn::Result<TokenStream> {
+        Ok(input.into_iter().skip(1).collect::<TokenStream>())
     }
 }
 
 /// Keeps only the first `N` tokens from the stream.
 ///
-/// The argument must be a valid integer literal, e.g., `[[ 3 ]]`.
+/// # Arguments
+///
+/// This takes a single [`syn::LitInt`] as argument (e.g., `[[ 3 ]]`).
+///
+/// # Example
+///
+/// * `[< a b c d >]:take[[2]]` → `a b`
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Take;
 
-impl Transformer for Take {
-    fn transform(
-        &mut self,
-        input: TokenStream,
-        argument: TokenStream,
-    ) -> Result<TokenStream, syn::Error> {
-        let lit: syn::LitInt = syn::parse2(argument)?;
-        let n: usize = lit.base10_parse()?;
+impl Pass for Take {
+    type Argument = syn::LitInt;
 
-        Ok(input.into_iter().take(n).collect())
+    fn through(&mut self, input: TokenStream, count: Self::Argument) -> syn::Result<TokenStream> {
+        let take_count = count.base10_parse()?;
+
+        Ok(input.into_iter().take(take_count).collect())
     }
 }
 
 /// Discards the first `N` tokens from the stream.
 ///
-/// The argument must be a valid integer literal, e.g., `[[ 2 ]]`.
+/// # Arguments
+///
+/// This takes a single [`syn::LitInt`] as argument (e.g., `[[ 2 ]]`).
+///
+/// # Example
+///
+/// `[< a b c d >]:skip[[2]]` → `c d`
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Skip;
 
-impl Transformer for Skip {
-    fn transform(
-        &mut self,
-        input: TokenStream,
-        argument: TokenStream,
-    ) -> Result<TokenStream, syn::Error> {
-        let lit: syn::LitInt = syn::parse2(argument)?;
+impl Pass for Skip {
+    type Argument = syn::LitInt;
 
-        Ok(input.into_iter().skip(lit.base10_parse()?).collect())
+    fn through(&mut self, input: TokenStream, count: Self::Argument) -> syn::Result<TokenStream> {
+        let skip_count = count.base10_parse()?;
+
+        Ok(input.into_iter().skip(skip_count).collect())
     }
 }
 
 /// Duplicates the input stream `N` times.
 ///
-/// The argument must be a valid integer literal, e.g., `[[ 5 ]]`.
+/// # Arguments
+///
+/// This takes a single [`syn::LitInt`] as argument (e.g., `[[ 3 ]]`).
+///
+/// # Example
+///
+/// * `[< a b >]:repeat[[3]]` → `a b a b a b`
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Repeat;
 
-impl Transformer for Repeat {
-    fn transform(
+impl Pass for Repeat {
+    type Argument = syn::LitInt;
+
+    fn through(
         &mut self,
         input: TokenStream,
-        argument: TokenStream,
-    ) -> Result<TokenStream, syn::Error> {
-        let lit: syn::LitInt = syn::parse2(argument)?;
+        target_count: Self::Argument,
+    ) -> syn::Result<TokenStream> {
+        let target_list = input.into_iter().collect::<Vec<TokenTree>>();
 
-        let n: usize = lit.base10_parse()?;
+        let take_count = target_list.len() * target_count.base10_parse::<usize>()?;
 
-        let mut output = TokenStream::new();
-
-        for _ in 0..n {
-            output.extend(input.clone());
-        }
-
-        Ok(output)
+        Ok(target_list
+            .iter()
+            .cycle()
+            .take(take_count)
+            .cloned()
+            .collect::<TokenStream>())
     }
 }
 
 /// Emits the number of token trees present in the stream.
 ///
-/// E.g., `[< a b c >]:measure` -> `3`
+/// # Arguments
+///
+/// This does not take any argument.
+///
+/// # Example
+///
+/// * `[< a b c >]:count` → `3`
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Count;
 
-impl Transformer for Count {
-    fn transform(
-        &mut self,
-        input: TokenStream,
-        argument: TokenStream,
-    ) -> Result<TokenStream, syn::Error> {
-        let _: Nothing = syn::parse2(argument)?;
+impl Pass for Count {
+    type Argument = syn::parse::Nothing;
 
-        let target_count = input.into_iter().count();
+    fn through(&mut self, input: TokenStream, _: Self::Argument) -> syn::Result<TokenStream> {
+        Ok(Literal::usize_unsuffixed(input.into_iter().count()).to_token_stream())
+    }
+}
 
-        let target_literal = Literal::usize_unsuffixed(target_count);
+/// The range argument of a [`Sequence`] pass.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum SequenceRange {
+    /// An inclusive range.
+    Inclusive(RangeInclusive<i32>),
 
-        Ok(quote::quote!(#target_literal))
+    /// A non-inclusive range.
+    NonInclusive(Range<i32>),
+}
+
+impl Parse for SequenceRange {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let start: syn::LitInt = input.parse()?;
+
+        if input.peek(Token![..=]) {
+            let _: Token![..=] = input.parse()?;
+
+            let end: syn::LitInt = input.parse()?;
+
+            Ok(Self::Inclusive(start.base10_parse()?..=end.base10_parse()?))
+        } else {
+            let _: Token![..] = input.parse()?;
+
+            let end: syn::LitInt = input.parse()?;
+
+            Ok(Self::NonInclusive(
+                start.base10_parse()?..end.base10_parse()?,
+            ))
+        }
     }
 }
 
 /// Generates a sequence of integers based on a provided range.
 ///
-/// The input stream is ignored. The argument must be a valid Rust range literal.
-/// Supported formats: `[[ 0..5 ]]` or `[[ 1..=10 ]]`.
+/// The input stream is ignored.
+///
+/// # Arguments
+///
+/// This takes a single [`SequenceRange`] as argument (e.g., `[[ 0..4 ]]` or `[[ 1..=3 ]]`).
 ///
 /// # Example
-/// `[< >]:sequence[[ 1..=3 ]]` -> `1 2 3`
+///
+/// * `[< >]:sequence[[ 1..4 ]]` → `1 2 3`
+/// * `[< >]:sequence[[ 1..=3 ]]` → `1 2 3`
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Sequence;
 
-impl Transformer for Sequence {
-    fn transform(&mut self, input: TokenStream, argument: TokenStream) -> syn::Result<TokenStream> {
-        struct Argument(Range<i32>);
+impl Pass for Sequence {
+    type Argument = SequenceRange;
 
-        impl Parse for Argument {
-            fn parse(input: ParseStream) -> syn::Result<Self> {
-                let start: LitInt = input.parse()?;
+    fn through(
+        &mut self,
+        input: TokenStream,
+        target_range: Self::Argument,
+    ) -> syn::Result<TokenStream> {
+        let _: syn::parse::Nothing = syn::parse2(input)?;
 
-                let _: Token![..] = input.parse()?;
+        fn fold_fn(mut target_output: TokenStream, target_literal: Literal) -> TokenStream {
+            target_output.extend(target_literal.into_token_stream());
 
-                let end: LitInt = input.parse()?;
-
-                Ok(Self(start.base10_parse()?..end.base10_parse()?))
-            }
+            target_output
         }
 
-        let _: Nothing = syn::parse2(input)?;
-
-        let Argument(target_range) = syn::parse2(argument)?;
-
-        let mut output = TokenStream::new();
-
-        for target_value in target_range {
-            output.extend(iter::once(TokenTree::Literal(Literal::i32_unsuffixed(
-                target_value,
-            ))));
-        }
-
-        Ok(output)
+        Ok(match target_range {
+            SequenceRange::Inclusive(range_inclusive) => range_inclusive
+                .into_iter()
+                .map(Literal::i32_unsuffixed)
+                .fold(TokenStream::new(), fold_fn),
+            SequenceRange::NonInclusive(range) => range
+                .into_iter()
+                .map(Literal::i32_unsuffixed)
+                .fold(TokenStream::new(), fold_fn),
+        })
     }
 }
 

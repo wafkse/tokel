@@ -1,29 +1,56 @@
 //! Stateful generation [`Transformer`]s.
+//!
+//! # Available Transformers
+//!!
+//! | Transformer   | Argument Type                 | Description |
+//! |---------------|-------------------------------|-------------|
+//! | [`Enumerate`] | [`syn::parse::Nothing`]       | Yields an incrementing integer literal on each invocation (stateful). |
+//!
+//! # Argument Types
+//!
+//! - [`syn::parse::Nothing`]: No argument required.
+//!
+//! # Examples
+//!
+//! * `[< >]:enumerate` → `0`
+//! * Calling the same transformer again advances its state: `[< >]:enumerate` → `1`
+//! * Use `enumerate` inside another transformer's argument:
+//!   * `[< b c >]:push_left[[[< >]:enumerate]]` → `0 b c`
+//!   * `[< b c >]:push_right[[[< >]:enumerate]]` → `b c 1`
 
 use proc_macro2::{Literal, TokenStream};
-use tokel_engine::prelude::{Registry, Transformer};
+
+use quote::ToTokens;
+use tokel_engine::prelude::{Pass, Registry, Transformer};
 
 /// Yields an incrementing integer literal every time it is called.
+///
+/// # Argument
+///
+/// This takes no argument.
+///
+/// # Examples
+///
+/// * `[< >]:enumerate` → `0`
+/// * As an argument to another transformer: `[< a b >]:push_left[[[< >]:enumerate]]` → `0 a b`
+///
+/// # Remarks
 ///
 /// The integer is internally an [`u32`], and is incremented with wrapping arithmetic.
 #[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Enumerate(u32);
 
-impl Transformer for Enumerate {
-    fn transform(
-        &mut self,
-        _input: TokenStream,
-        _argument: TokenStream,
-    ) -> Result<TokenStream, syn::Error> {
-        let Self(target_count) = self;
+impl Pass for Enumerate {
+    type Argument = syn::parse::Nothing;
+
+    fn through(&mut self, _: TokenStream, _: Self::Argument) -> syn::Result<TokenStream> {
+        let Self(enumerate_counter) = self;
 
         let current_value;
+        (current_value, *enumerate_counter) =
+            (*enumerate_counter, enumerate_counter.wrapping_add(1));
 
-        (current_value, *target_count) = (*target_count, target_count.wrapping_add(1));
-
-        let target_literal = Literal::u32_unsuffixed(current_value);
-
-        Ok(quote::quote!(#target_literal))
+        Ok(Literal::u32_unsuffixed(current_value).into_token_stream())
     }
 }
 

@@ -21,7 +21,7 @@ use ahash::AHashMap;
 
 use proc_macro2::TokenStream;
 
-use syn::parse::Nothing;
+use syn::parse::{Nothing, Parse};
 
 /// A transformer in a pipeline.
 ///
@@ -44,6 +44,38 @@ pub trait Transformer: Any {
     ///
     /// The failure mode of this associated function is implementation-dependent.
     fn transform(&mut self, input: TokenStream, argument: TokenStream) -> syn::Result<TokenStream>;
+}
+
+/// A trait that represents a singular pass over an input [token stream].
+///
+/// This is a stronger-typed alternative to the [`Transformer`] trait, which is obligated to be dyn-safe.
+///
+/// # Blanket Implementation
+///
+/// A blanket implementation for [`Transformer`] for all implementors of [`Pass`] is automatically performed.
+///
+/// It is advisable to use generic bounds of this type in respect to [`Transformer`].
+///
+/// [token stream]: TokenStream
+pub trait Pass: Transformer {
+    /// The argument type used by this pass.
+    ///
+    /// If no argument is required, it is advisable to use the [`Nothing`] type.
+    type Argument: Parse;
+
+    /// Pass-through an input [token stream] with an appropiate source-parsable argument.
+    fn through(&mut self, input: TokenStream, argument: Self::Argument)
+    -> syn::Result<TokenStream>;
+}
+
+/// A blanket implementation for [`Transformer`] for all [`Pass`] implementors.
+impl<T> Transformer for T
+where
+    T: Pass + Any,
+{
+    fn transform(&mut self, input: TokenStream, argument: TokenStream) -> syn::Result<TokenStream> {
+        <T as Pass>::through(self, input, syn::parse2::<T::Argument>(argument)?)
+    }
 }
 
 /// A centralized registry of [`Transformer`] of distinct types.
@@ -164,11 +196,10 @@ impl fmt::Debug for Registry {
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Identity;
 
-impl Transformer for Identity {
-    #[inline]
-    fn transform(&mut self, input: TokenStream, argument: TokenStream) -> syn::Result<TokenStream> {
-        let _: Nothing = syn::parse2(argument)?;
+impl Pass for Identity {
+    type Argument = Nothing;
 
+    fn through(&mut self, input: TokenStream, _: Self::Argument) -> syn::Result<TokenStream> {
         Ok(input)
     }
 }

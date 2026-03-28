@@ -1,17 +1,60 @@
 //! String and text-manipulation Tokel [`Transformer`]s.
+//!
+//! This module provides transformers for modifying the textual representation
+//! and casing of token streams.
+//!
+//! # Available Transformers
+//!
+//! | Transformer     | Argument Type           | Description |
+//! |-----------------|-------------------------|-------------|
+//! | [`Concatenate`] | [`syn::parse::Nothing`] | Concatenates all input tokens into a single identifier or group. |
+//! | [`Case`]        | [`CaseStyle`]           | Converts identifiers and string-like tokens to a target case style. |
+//!
+//! # Argument Types
+//!
+//! * [`syn::parse::Nothing`] - No argument is required.
+//! * [`CaseStyle`] - A specific case formatting rule: `pascal`, `camel`, or `snake`.
+//!
+//! # Examples
+//!
+//! **Basic Usage:**
+//! * `[< hello _ world >]:concatenate` &rarr; `hello_world`
+//! * `[< hello _ world >]:case[[pascal]]` &rarr; `Hello _ World`
+//! * `[< some_value >]:case[[camel]]` &rarr; `someValue`
+//!
+//! **Nested & Composed Usage:**
+//! Transformers can be evaluated inside arguments of other transformers. Inner expressions are always evaluated first.
+//! * `[< a b c >]:intersperse[[[< x y >]:concatenate]]` &rarr; `a xy b xy c`
+//! * `[< a b >]:push_left[[[< hello world >]:concatenate]]` &rarr; `helloworld a b`
+//! * `[< greet >]:push_right[[[< hello world >]:case[[pascal]]]]` &rarr; `greet HelloWorld`
+//!
+//! **Literal Transformations:**
+//! Case transformations apply seamlessly to string literals and identifiers alike:
+//! * `[< "hello" world >]:case[[snake]]` &rarr; `hello world`
+//!
+//! # Remarks
+//!
+//! * [`Concatenate`] directly glues the textual representations of tokens together. Token groups are processed recursively, meaning any nested tokens are flattened into the final result.
+//! * [`Case`] targets identifier-like tokens, string literals, and boolean literals. It safely preserves punctuation and non-identifier tokens where possible.
 
-use std::str::FromStr;
+use std::{
+    iter::{self, Peekable},
+    str::FromStr,
+};
 
-use heck::{AsLowerCamelCase, AsPascalCase, AsSnekCase};
-use proc_macro2::{Group, Ident, Span, TokenStream, TokenTree};
+use proc_macro2::{Group, Ident, TokenStream, TokenTree};
 
 use quote::ToTokens;
+
 use syn::{
     Lit,
     parse::{Nothing, Parse, ParseStream},
+    spanned::Spanned,
 };
 
-use tokel_engine::prelude::{Registry, Transformer};
+use heck::{AsLowerCamelCase, AsPascalCase, AsSnekCase};
+
+use tokel_engine::prelude::{Pass, Registry, Transformer};
 
 /// A transformer that concatenates all input tokens into a single identifier.
 ///
@@ -24,49 +67,127 @@ use tokel_engine::prelude::{Registry, Transformer};
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Concatenate;
 
-impl Transformer for Concatenate {
-    fn transform(
-        &mut self,
-        input: TokenStream,
-        argument: TokenStream,
-    ) -> Result<TokenStream, syn::Error> {
-        // Concatenate takes no arguments, so we enforce that the `[[...]]` is empty.
-        let _: Nothing = syn::parse2(argument)?;
+impl Pass for Concatenate {
+    type Argument = Nothing;
 
-        // If the input is completely empty, just return empty.
-        if input.is_empty() {
-            return Ok(input);
-        }
+    fn through(&mut self, input: TokenStream, _: Self::Argument) -> syn::Result<TokenStream> {
+        struct ConcatIter(Peekable<<TokenStream as IntoIterator>::IntoIter>);
 
-        let mut concatenated_string = String::new();
-        let mut first_span = Span::call_site();
-        let mut is_first = true;
+        impl ConcatIter {
+            fn stream(stream: TokenStream) -> syn::Result<TokenStream> {
+                let mut nested_iter = Self(stream.into_iter().peekable());
 
-        for tree in input {
-            if is_first {
-                first_span = tree.span();
+                let mut nested_tokens = Vec::new();
 
-                is_first = false;
+                loop {
+                    match nested_iter.next() {
+                        Some(Ok(tree)) => nested_tokens.push(tree),
+                        Some(Err(error)) => return Err(error),
+                        None => break,
+                    }
+                }
+
+                Ok(nested_tokens.into_iter().collect::<TokenStream>())
             }
-
-            // `to_string()` on a TokenTree strips `r#` from idents and handles raw strings nicely.
-            concatenated_string.push_str(&tree.to_string());
         }
 
-        // We must ensure the resulting string is a valid Rust identifier.
-        // `syn::Ident::new` will panic if the string is not a valid ident (e.g. if it starts with a number).
-        // To be safe, we try to parse it. If it fails, we return a syn::Error.
-        let parsed_ident = syn::parse_str::<Ident>(&concatenated_string).map_err(|_| {
-            syn::Error::new(
-                first_span,
-                format!("concatenated string `{concatenated_string}` is not a valid identifier"),
-            )
-        })?;
+        impl Iterator for ConcatIter {
+            type Item = syn::Result<TokenTree>;
 
-        Ok(quote::quote_spanned!(first_span=> #parsed_ident))
+            fn next(&mut self) -> Option<Self::Item> {
+                let Self(inner_iter) = self;
+
+                match inner_iter.peek() {
+                    Some(TokenTree::Ident(..) | TokenTree::Group(..)) => match inner_iter.next() {
+                        Some(TokenTree::Ident(ident_start)) => {
+                            let ref mut ident_str = String::new();
+
+                            let ref mut ident_tokens = TokenStream::new();
+
+                            ident_str.push_str(ident_start.to_string().as_str());
+                            ident_tokens.extend(iter::once(ident_start));
+
+                            while let Some(TokenTree::Ident(..)) = inner_iter.peek() {
+                                let Some(TokenTree::Ident(ident_extra)) = inner_iter.next() else {
+                                    unreachable!()
+                                };
+
+                                ident_tokens.extend(iter::once(ident_extra.clone()));
+
+                                ident_str.push_str(ident_extra.to_string().as_str());
+                            }
+
+                            let mut ident = syn::parse_str::<Ident>(ident_str).ok()?;
+
+                            ident.set_span(ident_tokens.span());
+
+                            Some(Ok(TokenTree::Ident(ident)))
+                        }
+                        Some(TokenTree::Group(..)) => {
+                            let Some(TokenTree::Group(inner_group)) = inner_iter.next() else {
+                                unreachable!()
+                            };
+
+                            let (delimiter, stream, span) = (
+                                inner_group.delimiter(),
+                                inner_group.stream(),
+                                inner_group.span(),
+                            );
+
+                            let stream = match Self::stream(stream) {
+                                Ok(stream) => stream,
+                                Err(error) => return Some(Err(error)),
+                            };
+
+                            let mut group = Group::new(delimiter, stream);
+
+                            group.set_span(span);
+
+                            Some(Ok(TokenTree::Group(group)))
+                        }
+                        Some(..) | None => unreachable!(),
+                    },
+                    Some(..) | None => inner_iter.next().map(Ok),
+                }
+            }
+        }
+
+        ConcatIter::stream(input)
     }
 }
 
+/// The target case style to transform the identifiers to.
+#[derive(Debug, Copy, Clone)]
+pub enum CaseStyle {
+    /// `PascalCase`.
+    Pascal,
+
+    /// `camelCase`.
+    Camel,
+
+    /// `snake_case`.
+    Snake,
+}
+
+impl Parse for CaseStyle {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let case_ident = input.parse::<Ident>()?;
+
+        let _: Nothing = input.parse()?;
+
+        match case_ident.to_string().as_str() {
+            "pascal" => Ok(Self::Pascal),
+            "camel" => Ok(Self::Camel),
+            "snake" => Ok(Self::Snake),
+            _ => {
+                return Err(syn::Error::new_spanned(
+                    case_ident,
+                    "unsupported case, supported ones are: `pascal`, `camel`, `snake`",
+                ));
+            }
+        }
+    }
+}
 /// A transformer that changes the case of incoming identifiers, as instructed.
 ///
 /// # Example
@@ -75,41 +196,19 @@ impl Transformer for Concatenate {
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Case;
 
-impl Transformer for Case {
-    fn transform(&mut self, input: TokenStream, argument: TokenStream) -> syn::Result<TokenStream> {
-        #[derive(Debug, Copy, Clone)]
-        enum Target {
-            Pascal,
-            Camel,
-            Snake,
-        }
+impl Pass for Case {
+    type Argument = CaseStyle;
 
-        impl Parse for Target {
-            fn parse(input: ParseStream) -> syn::Result<Self> {
-                let case_ident = input.parse::<Ident>()?;
-
-                let _: Nothing = input.parse()?;
-
-                Ok(match case_ident.to_string().as_str() {
-                    "pascal" => Self::Pascal,
-                    "camel" => Self::Camel,
-                    "snake" => Self::Snake,
-                    _ => return Err(syn::Error::new_spanned(case_ident, "unsupported case")),
-                })
-            }
-        }
-
-        let target_case: Target = syn::parse2(argument)?;
-
-        fn apply_case(string: String, case: Target) -> String {
+    fn through(&mut self, input: TokenStream, style: Self::Argument) -> syn::Result<TokenStream> {
+        fn apply_case(string: String, case: CaseStyle) -> String {
             match case {
-                Target::Pascal => AsPascalCase(string).to_string(),
-                Target::Camel => AsLowerCamelCase(string).to_string(),
-                Target::Snake => AsSnekCase(string).to_string(),
+                CaseStyle::Pascal => AsPascalCase(string).to_string(),
+                CaseStyle::Camel => AsLowerCamelCase(string).to_string(),
+                CaseStyle::Snake => AsSnekCase(string).to_string(),
             }
         }
 
-        fn apply(input: TokenStream, case: Target) -> syn::Result<TokenStream> {
+        fn apply(input: TokenStream, case: CaseStyle) -> syn::Result<TokenStream> {
             input
                 .into_iter()
                 .try_fold(TokenStream::new(), |mut acc, target_tree| {
@@ -158,7 +257,7 @@ impl Transformer for Case {
                 })
         }
 
-        apply(input, target_case)
+        apply(input, style)
     }
 }
 

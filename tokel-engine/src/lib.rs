@@ -29,7 +29,7 @@ pub mod expand;
 pub mod prelude {
     //! The prelude module of the `tokel-engine` crate.
 
-    pub use crate::transform::{Registry, Transformer};
+    pub use crate::transform::{Pass, Registry, Transformer};
 
     pub use crate::expand::Expand;
 

@@ -25,6 +25,8 @@ If a transformer takes arguments, they are provided using double brackets `[[ ..
 
 Because transformers only apply to the resolved output of a `[< ... >]` block, the syntax avoids the ambiguity of attaching transforms to individual tokens.
 
+**NOTE**: For a full list of standard transformers, see the `tokel-std` crate.
+
 ### Formal Grammar
 
 ```ebnf,ignore
