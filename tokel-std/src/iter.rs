@@ -26,24 +26,24 @@
 //!
 //! # Examples
 //!
-//! - `[< a b c >]:reverse` → `c b a`
-//! - `[< a b c >]:intersperse[[,]]` → `a , b , c`
-//! - `[< b c >]:push_left[[a]]` → `a b c`
-//! - `[< a b c >]:pop_right` → `a b`
-//! - `[< a b c >]:take[[2]]` → `a b`
-//! - `[< a b c >]:skip[[1]]` → `b c`
-//! - `[< a b >]:repeat[[3]]` → `a b a b a b`
-//! - `[< a b c >]:count` → `3`
-//! - `[< >]:sequence[[ 1..=3 ]]` → `1 2 3`
+//! - `[< a b c >]:reverse` ->`c b a`
+//! - `[< a b c >]:intersperse[[,]]` ->`a , b , c`
+//! - `[< b c >]:push_left[[a]]` ->`a b c`
+//! - `[< a b c >]:pop_right` ->`a b`
+//! - `[< a b c >]:take[[2]]` ->`a b`
+//! - `[< a b c >]:skip[[1]]` ->`b c`
+//! - `[< a b >]:repeat[[3]]` ->`a b a b a b`
+//! - `[< a b c >]:count` ->`3`
+//! - `[< >]:sequence[[ 1..=3 ]]` ->`1 2 3`
 //!
 //! * Transformers can be nested or composed by evaluating other transformers inside arguments:
 //!
-//! - `[< a b c >]:intersperse[[[< x y >]:reverse]]` → `a y x b y x c`
-//! - `[< a b c >]:push_left[[[< x y >]:reverse]]` → `y x a b c`
-//! - `[< a b c >]:push_right[[[< d e >]:take[[1]]]]` → `a b c d`
-//! - `[< 1 2 3 >]:take[[[< 2 1 >]:reverse:take[[1]]]]` → `1 2`
-//! - `[< a b c >]:repeat[[[< 2 1 >]:count]]` → `a b c a b c`
-//! - `[< >]:sequence[[[< 1 4 >]:reverse:take[[1]]..4]]` → `3 4 5 6`
+//! - `[< a b c >]:intersperse[[[< x y >]:reverse]]` ->`a y x b y x c`
+//! - `[< a b c >]:push_left[[[< x y >]:reverse]]` ->`y x a b c`
+//! - `[< a b c >]:push_right[[[< d e >]:take[[1]]]]` ->`a b c d`
+//! - `[< 1 2 3 >]:take[[[< 2 1 >]:reverse:take[[1]]]]` ->`1 2`
+//! - `[< a b c >]:repeat[[[< 2 1 >]:count]]` ->`a b c a b c`
+//! - `[< >]:sequence[[[< 1 4 >]:reverse:take[[1]]..4]]` ->`3 4 5 6`
 
 use std::{
     iter,
@@ -69,7 +69,7 @@ use tokel_engine::prelude::{Pass, Registry, Transformer};
 ///
 /// # Example
 ///
-/// `[< a b c >]:reverse` → `c b a`
+/// `[< a b c >]:reverse` ->`c b a`
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Reverse;
 
@@ -94,7 +94,7 @@ impl Pass for Reverse {
 ///
 /// # Example
 ///
-/// `[< a b c >]:intersperse[[,]]` → `a , b , c`
+/// `[< a b c >]:intersperse[[,]]` ->`a , b , c`
 ///
 /// *NOTE*: Most tokens will be preserved *verbatim*, including any span-related information.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -139,7 +139,7 @@ impl Pass for Intersperse {
 ///
 /// # Example
 ///
-/// `[< b c >]:push_left[[a]]` → `a b c`
+/// `[< b c >]:push_left[[a]]` ->`a b c`
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PushLeft;
 
@@ -159,7 +159,7 @@ impl Pass for PushLeft {
 ///
 /// # Example
 ///
-/// `[< a b c >]:pop_right` → `a b`
+/// `[< a b c >]:pop_right` ->`a b`
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PopRight;
 
@@ -183,7 +183,7 @@ impl Pass for PopRight {
 ///
 /// # Example
 ///
-/// `[< a b >]:push_right[[c]]` → `a b c`
+/// `[< a b >]:push_right[[c]]` ->`a b c`
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PushRight;
 
@@ -203,7 +203,7 @@ impl Pass for PushRight {
 ///
 /// # Example
 ///
-/// * `[< a b c >]:pop_left` → `b c`
+/// * `[< a b c >]:pop_left` ->`b c`
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PopLeft;
 
@@ -223,7 +223,7 @@ impl Pass for PopLeft {
 ///
 /// # Example
 ///
-/// * `[< a b c d >]:take[[2]]` → `a b`
+/// * `[< a b c d >]:take[[2]]` ->`a b`
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Take;
 
@@ -245,7 +245,7 @@ impl Pass for Take {
 ///
 /// # Example
 ///
-/// `[< a b c d >]:skip[[2]]` → `c d`
+/// `[< a b c d >]:skip[[2]]` ->`c d`
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Skip;
 
@@ -267,7 +267,7 @@ impl Pass for Skip {
 ///
 /// # Example
 ///
-/// * `[< a b >]:repeat[[3]]` → `a b a b a b`
+/// * `[< a b >]:repeat[[3]]` ->`a b a b a b`
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Repeat;
 
@@ -300,7 +300,7 @@ impl Pass for Repeat {
 ///
 /// # Example
 ///
-/// * `[< a b c >]:count` → `3`
+/// * `[< a b c >]:count` ->`3`
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Count;
 
@@ -354,8 +354,8 @@ impl Parse for SequenceRange {
 ///
 /// # Example
 ///
-/// * `[< >]:sequence[[ 1..4 ]]` → `1 2 3`
-/// * `[< >]:sequence[[ 1..=3 ]]` → `1 2 3`
+/// * `[< >]:sequence[[ 1..4 ]]` ->`1 2 3`
+/// * `[< >]:sequence[[ 1..=3 ]]` ->`1 2 3`
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Sequence;
 

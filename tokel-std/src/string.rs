@@ -18,19 +18,19 @@
 //! # Examples
 //!
 //! **Basic Usage:**
-//! * `[< hello _ world >]:concatenate` &rarr; `hello_world`
-//! * `[< hello _ world >]:case[[pascal]]` &rarr; `Hello _ World`
-//! * `[< some_value >]:case[[camel]]` &rarr; `someValue`
+//! * `[< hello _ world >]:concatenate` -> `hello_world`
+//! * `[< hello _ world >]:case[[pascal]]` -> `Hello _ World`
+//! * `[< some_value >]:case[[camel]]` -> `someValue`
 //!
 //! **Nested & Composed Usage:**
 //! Transformers can be evaluated inside arguments of other transformers. Inner expressions are always evaluated first.
-//! * `[< a b c >]:intersperse[[[< x y >]:concatenate]]` &rarr; `a xy b xy c`
-//! * `[< a b >]:push_left[[[< hello world >]:concatenate]]` &rarr; `helloworld a b`
-//! * `[< greet >]:push_right[[[< hello world >]:case[[pascal]]]]` &rarr; `greet HelloWorld`
+//! * `[< a b c >]:intersperse[[[< x y >]:concatenate]]` -> `a xy b xy c`
+//! * `[< a b >]:push_left[[[< hello world >]:concatenate]]` -> `helloworld a b`
+//! * `[< greet >]:push_right[[[< hello world >]:case[[pascal]]]]` -> `greet HelloWorld`
 //!
 //! **Literal Transformations:**
 //! Case transformations apply seamlessly to string literals and identifiers alike:
-//! * `[< "hello" world >]:case[[snake]]` &rarr; `hello world`
+//! * `[< "hello" world >]:case[[snake]]` -> `hello world`
 //!
 //! # Remarks
 //!
@@ -105,14 +105,17 @@ impl Pass for Concatenate {
                             let ref mut ident_tokens = TokenStream::new();
 
                             ident_str.push_str(ident_start.to_string().as_str());
-                            ident_tokens.extend(iter::once(ident_start));
+                            ident_tokens
+                                .extend(iter::once(ident_start).map(Ident::into_token_stream));
 
                             while let Some(TokenTree::Ident(..)) = inner_iter.peek() {
                                 let Some(TokenTree::Ident(ident_extra)) = inner_iter.next() else {
                                     unreachable!()
                                 };
 
-                                ident_tokens.extend(iter::once(ident_extra.clone()));
+                                ident_tokens.extend(
+                                    iter::once(ident_extra.clone()).map(Ident::into_token_stream),
+                                );
 
                                 ident_str.push_str(ident_extra.to_string().as_str());
                             }

@@ -12,11 +12,11 @@
 //!
 //! # Examples
 //!
-//! * `[< >]:enumerate` → `0`
-//! * Calling the same transformer again advances its state: `[< >]:enumerate` → `1`
+//! * `[< >]:enumerate` ->`0`
+//! * Calling the same transformer again advances its state: `[< >]:enumerate` ->`1`
 //! * Use `enumerate` inside another transformer's argument:
-//!   * `[< b c >]:push_left[[[< >]:enumerate]]` → `0 b c`
-//!   * `[< b c >]:push_right[[[< >]:enumerate]]` → `b c 1`
+//!   * `[< b c >]:push_left[[[< >]:enumerate]]` ->`0 b c`
+//!   * `[< b c >]:push_right[[[< >]:enumerate]]` ->`b c 1`
 
 use proc_macro2::{Literal, TokenStream};
 
@@ -31,8 +31,8 @@ use tokel_engine::prelude::{Pass, Registry, Transformer};
 ///
 /// # Examples
 ///
-/// * `[< >]:enumerate` → `0`
-/// * As an argument to another transformer: `[< a b >]:push_left[[[< >]:enumerate]]` → `0 a b`
+/// * `[< >]:enumerate` ->`0`
+/// * As an argument to another transformer: `[< a b >]:push_left[[[< >]:enumerate]]` ->`0 a b`
 ///
 /// # Remarks
 ///
