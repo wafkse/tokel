@@ -8,6 +8,7 @@
 //! | Transformer     | Argument Type           | Description |
 //! |-----------------|-------------------------|-------------|
 //! | [`Concatenate`] | [`syn::parse::Nothing`] | Concatenates all input tokens into a single identifier or group. |
+//! | [`ToString`] | [`syn::parse::Nothing`] | Concatenates all input tokens into a single identifier or group. |
 //! | [`Case`]        | [`CaseStyle`]           | Converts identifiers and string-like tokens to a target case style. |
 //!
 //! # Argument Types
@@ -141,7 +142,9 @@ impl Pass for Concatenate {
                                         inner_iter.peek()
                                     {
                                         if let Lit::Str(peeked_str) = Lit::new(peeked_lit.clone()) {
-                                            let _ = inner_iter.next();
+                                            let Some(..) = inner_iter.next() else {
+                                                unreachable!()
+                                            };
 
                                             concatenated_str.push_str(peeked_str.value().as_str());
                                         } else {
@@ -149,18 +152,16 @@ impl Pass for Concatenate {
                                         }
                                     }
 
-                                    Some(Ok(TokenTree::Literal(Literal::string(
-                                        concatenated_str.as_str(),
-                                    ))))
+                                    let mut lit = Literal::string(&concatenated_str);
+
+                                    lit.set_span(lit_str.span());
+
+                                    Some(Ok(TokenTree::Literal(lit)))
                                 } else {
                                     Some(Ok(TokenTree::Literal(lit)))
                                 }
                             }
-                            Some(TokenTree::Group(..)) => {
-                                let Some(TokenTree::Group(inner_group)) = inner_iter.next() else {
-                                    unreachable!()
-                                };
-
+                            Some(TokenTree::Group(inner_group)) => {
                                 let (delimiter, stream, span) = (
                                     inner_group.delimiter(),
                                     inner_group.stream(),
