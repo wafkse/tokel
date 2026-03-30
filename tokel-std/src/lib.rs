@@ -28,7 +28,8 @@
 //! | [`Count`]         | Returns the number of input token trees as an integer literal. | `[< a b c >]:count` -> `3` |
 //! | [`Sequence`]      | Yields an integer sequence. (Argument: `[[ start..end ]]`). | `[< >]:sequence[[1..=3]]` -> `1 2 3` |
 //! | [`Enumerate`]     | Stateful generator yielding an incrementing `u32` literal. | `[< >]:enumerate` -> `0` |
-//! | [`Concatenate`]   | Concatenates text representations of tokens into a single `Ident`. | `[< hello _ world >]:concatenate` -> `hello_world` |
+//! | [`Concatenate`]   | Concatenates text representations of tokens into a single `Ident` or string literal. | `[< hello _ world >]:concatenate` -> `hello_world` |
+//! | [`ToString`]      | Stringifies arbitrary tokens into string literals. | `[< hello _ world >]:to_string` -> `"hello" "_" "world"` |
 //! | [`Case`]          | Converts identifiers and strings to a target [`CaseStyle`]. | `[< hello_world >]:case[[pascal]]` -> `HelloWorld` |
 //!
 //! ## Notes
