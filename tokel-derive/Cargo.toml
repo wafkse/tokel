@@ -14,8 +14,8 @@ license.workspace = true
 proc-macro = true
 
 [dependencies]
-tokel-engine = { version = "0.2.0", path = "../tokel-engine" }
-tokel-std = { version = "0.2.0", path = "../tokel-std" }
+tokel-engine = { version = "0.2.3", path = "../tokel-engine" }
+tokel-std = { version = "0.2.3", path = "../tokel-std" }
 
 [dependencies.quote]
 version = "1.0"
