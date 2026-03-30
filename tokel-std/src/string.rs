@@ -42,7 +42,7 @@ use std::{
     str::FromStr,
 };
 
-use proc_macro2::{Group, Ident, TokenStream, TokenTree};
+use proc_macro2::{Group, Ident, Literal, TokenStream, TokenTree};
 
 use quote::ToTokens;
 
@@ -56,14 +56,18 @@ use heck::{AsLowerCamelCase, AsPascalCase, AsSnekCase};
 
 use tokel_engine::prelude::{Pass, Registry, Transformer};
 
-/// A transformer that concatenates all input tokens into a single identifier.
+/// A transformer that concatenates all elegible input tokens into a single identifier.
 ///
 /// It ignores standard spacing and simply glues the string representations
 /// of the tokens together.
 ///
+/// By "token", this implies identifier and string literals (not including byte literals, c-strings, or other string type).
+///
+/// This performs a rolling approach, physically contiguous tokens of the same type will be concatenated into one of the same token type.
+///
 /// # Example
 ///
-/// `[< hello _ world >]:concatenate` -> `hello_world`
+/// `[< hello _ world "what" "ever" . "buddy" >]:concatenate` -> `hello_world "whatever" . "buddy"`
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Concatenate;
 
@@ -98,58 +102,85 @@ impl Pass for Concatenate {
                 let Self(inner_iter) = self;
 
                 match inner_iter.peek() {
-                    Some(TokenTree::Ident(..) | TokenTree::Group(..)) => match inner_iter.next() {
-                        Some(TokenTree::Ident(ident_start)) => {
-                            let ref mut ident_str = String::new();
+                    Some(TokenTree::Ident(..) | TokenTree::Literal(..) | TokenTree::Group(..)) => {
+                        match inner_iter.next() {
+                            Some(TokenTree::Ident(ident_start)) => {
+                                let ref mut ident_str = String::new();
 
-                            let ref mut ident_tokens = TokenStream::new();
+                                let ref mut ident_tokens = TokenStream::new();
 
-                            ident_str.push_str(ident_start.to_string().as_str());
-                            ident_tokens
-                                .extend(iter::once(ident_start).map(Ident::into_token_stream));
+                                ident_str.push_str(ident_start.to_string().as_str());
+                                ident_tokens
+                                    .extend(iter::once(ident_start).map(Ident::into_token_stream));
 
-                            while let Some(TokenTree::Ident(..)) = inner_iter.peek() {
-                                let Some(TokenTree::Ident(ident_extra)) = inner_iter.next() else {
+                                while let Some(TokenTree::Ident(..)) = inner_iter.peek() {
+                                    let Some(TokenTree::Ident(ident_extra)) = inner_iter.next()
+                                    else {
+                                        unreachable!()
+                                    };
+
+                                    ident_tokens.extend(
+                                        iter::once(ident_extra.clone())
+                                            .map(Ident::into_token_stream),
+                                    );
+
+                                    ident_str.push_str(ident_extra.to_string().as_str());
+                                }
+
+                                let mut ident = syn::parse_str::<Ident>(ident_str).ok()?;
+
+                                ident.set_span(ident_tokens.span());
+
+                                Some(Ok(TokenTree::Ident(ident)))
+                            }
+                            Some(TokenTree::Literal(lit)) => {
+                                if let Lit::Str(lit_str) = Lit::new(lit.clone()) {
+                                    let mut concatenated_str = lit_str.value();
+
+                                    while let Some(TokenTree::Literal(peeked_lit)) =
+                                        inner_iter.peek()
+                                    {
+                                        if let Lit::Str(peeked_str) = Lit::new(peeked_lit.clone()) {
+                                            let _ = inner_iter.next();
+
+                                            concatenated_str.push_str(peeked_str.value().as_str());
+                                        } else {
+                                            break;
+                                        }
+                                    }
+
+                                    Some(Ok(TokenTree::Literal(Literal::string(
+                                        concatenated_str.as_str(),
+                                    ))))
+                                } else {
+                                    Some(Ok(TokenTree::Literal(lit)))
+                                }
+                            }
+                            Some(TokenTree::Group(..)) => {
+                                let Some(TokenTree::Group(inner_group)) = inner_iter.next() else {
                                     unreachable!()
                                 };
 
-                                ident_tokens.extend(
-                                    iter::once(ident_extra.clone()).map(Ident::into_token_stream),
+                                let (delimiter, stream, span) = (
+                                    inner_group.delimiter(),
+                                    inner_group.stream(),
+                                    inner_group.span(),
                                 );
 
-                                ident_str.push_str(ident_extra.to_string().as_str());
+                                let stream = match Self::stream(stream) {
+                                    Ok(stream) => stream,
+                                    Err(error) => return Some(Err(error)),
+                                };
+
+                                let mut group = Group::new(delimiter, stream);
+
+                                group.set_span(span);
+
+                                Some(Ok(TokenTree::Group(group)))
                             }
-
-                            let mut ident = syn::parse_str::<Ident>(ident_str).ok()?;
-
-                            ident.set_span(ident_tokens.span());
-
-                            Some(Ok(TokenTree::Ident(ident)))
+                            Some(..) | None => unreachable!(),
                         }
-                        Some(TokenTree::Group(..)) => {
-                            let Some(TokenTree::Group(inner_group)) = inner_iter.next() else {
-                                unreachable!()
-                            };
-
-                            let (delimiter, stream, span) = (
-                                inner_group.delimiter(),
-                                inner_group.stream(),
-                                inner_group.span(),
-                            );
-
-                            let stream = match Self::stream(stream) {
-                                Ok(stream) => stream,
-                                Err(error) => return Some(Err(error)),
-                            };
-
-                            let mut group = Group::new(delimiter, stream);
-
-                            group.set_span(span);
-
-                            Some(Ok(TokenTree::Group(group)))
-                        }
-                        Some(..) | None => unreachable!(),
-                    },
+                    }
                     Some(..) | None => inner_iter.next().map(Ok),
                 }
             }
@@ -170,6 +201,12 @@ pub enum CaseStyle {
 
     /// `snake_case`.
     Snake,
+
+    /// `UPPERCASE`
+    Upper,
+
+    /// `lowercase`
+    Lower,
 }
 
 impl Parse for CaseStyle {
@@ -182,15 +219,18 @@ impl Parse for CaseStyle {
             "pascal" => Ok(Self::Pascal),
             "camel" => Ok(Self::Camel),
             "snake" => Ok(Self::Snake),
+            "upper" => Ok(Self::Upper),
+            "lower" => Ok(Self::Lower),
             _ => {
                 return Err(syn::Error::new_spanned(
                     case_ident,
-                    "unsupported case, supported ones are: `pascal`, `camel`, `snake`",
+                    "unsupported case, supported ones are: `pascal`, `camel`, `snake`, `upper`, `lower`",
                 ));
             }
         }
     }
 }
+
 /// A transformer that changes the case of incoming identifiers, as instructed.
 ///
 /// # Example
@@ -208,6 +248,8 @@ impl Pass for Case {
                 CaseStyle::Pascal => AsPascalCase(string).to_string(),
                 CaseStyle::Camel => AsLowerCamelCase(string).to_string(),
                 CaseStyle::Snake => AsSnekCase(string).to_string(),
+                CaseStyle::Upper => string.to_uppercase(),
+                CaseStyle::Lower => string.to_lowercase(),
             }
         }
 
@@ -264,6 +306,84 @@ impl Pass for Case {
     }
 }
 
+/// A transformer that converts every non-nested token tree into a string.
+///
+/// This does not further modify literals that are already strings.
+///
+/// # Example
+///
+/// `[< hello _ world >]:to_string` -> `"hello" "_" "world"`
+pub struct ToString;
+
+impl Pass for ToString {
+    type Argument = syn::parse::Nothing;
+
+    fn through(&mut self, input: TokenStream, _: Self::Argument) -> syn::Result<TokenStream> {
+        struct ToStringIter(<TokenStream as IntoIterator>::IntoIter);
+
+        impl ToStringIter {
+            fn stream(stream: TokenStream) -> TokenStream {
+                Self(stream.into_iter()).collect::<TokenStream>()
+            }
+        }
+
+        impl Iterator for ToStringIter {
+            type Item = TokenTree;
+
+            fn next(&mut self) -> Option<Self::Item> {
+                let Self(inner_iter) = self;
+
+                let Some(token_tree) = inner_iter.next() else {
+                    return None;
+                };
+
+                Some(match token_tree {
+                    TokenTree::Group(group) => {
+                        let (delimiter, stream, span) =
+                            (group.delimiter(), group.stream(), group.span());
+
+                        let mut group = Group::new(delimiter, Self::stream(stream));
+
+                        group.set_span(span);
+
+                        TokenTree::Group(group)
+                    }
+                    TokenTree::Ident(ident) => {
+                        let mut lit = Literal::string(ident.to_string().as_str());
+
+                        lit.set_span(ident.span());
+
+                        TokenTree::Literal(lit)
+                    }
+                    TokenTree::Punct(punct) => {
+                        let mut lit = Literal::string(punct.to_string().as_str());
+
+                        lit.set_span(punct.span());
+
+                        TokenTree::Literal(lit)
+                    }
+                    TokenTree::Literal(literal) => {
+                        // NOTE: If already a string-like literal, keep it as it is.
+                        if let Lit::CStr(..) | Lit::ByteStr(..) | Lit::Char(..) | Lit::Str(..) =
+                            Lit::new(literal.clone())
+                        {
+                            TokenTree::Literal(literal)
+                        } else {
+                            let mut lit = Literal::string(literal.to_string().as_str());
+
+                            lit.set_span(literal.span());
+
+                            TokenTree::Literal(lit)
+                        }
+                    }
+                })
+            }
+        }
+
+        Ok(ToStringIter::stream(input))
+    }
+}
+
 /// Inserts all `string`-related [`Transformer`]s into the specified [`Registry`].
 ///
 /// # Errors
@@ -280,6 +400,11 @@ pub fn register(registry: &mut Registry) -> Result<(), Box<dyn Transformer>> {
 
     registry
         .try_insert("case", Case)
+        .map_err(Box::new)
+        .map_err(|t| t as Box<dyn Transformer>)?;
+
+    registry
+        .try_insert("to_string", ToString)
         .map_err(Box::new)
         .map_err(|t| t as Box<dyn Transformer>)?;
 
