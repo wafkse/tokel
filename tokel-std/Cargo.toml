@@ -12,7 +12,7 @@ license.workspace = true
 
 [dependencies]
 heck = "0.5.0"
-tokel-engine = { version = "0.2.3", path = "../tokel-engine" }
+tokel-engine = { version = "0.2.4", path = "../tokel-engine" }
 
 [dependencies.proc-macro2]
 version = "1.0"

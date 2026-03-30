@@ -11,8 +11,8 @@ authors.workspace = true
 license.workspace = true
 
 [dependencies]
-tokel-derive = { version = "0.2.3", path = "../tokel-derive", optional = true }
-tokel-engine = { version = "0.2.3", path = "../tokel-engine", optional = true }
+tokel-derive = { version = "0.2.4", path = "../tokel-derive", optional = true }
+tokel-engine = { version = "0.2.4", path = "../tokel-engine", optional = true }
 
 [features]
 default = ["derive"]
