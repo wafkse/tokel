@@ -31,6 +31,8 @@
 //! | [`Concatenate`]   | Concatenates text representations of tokens into a single `Ident` or string literal. | `[< hello _ world >]:concatenate` -> `hello_world` |
 //! | [`ToString`]      | Stringifies arbitrary tokens into string literals. | `[< hello _ world >]:to_string` -> `"hello" "_" "world"` |
 //! | [`Case`]          | Converts identifiers and strings to a target [`CaseStyle`]. | `[< hello_world >]:case[[pascal]]` -> `HelloWorld` |
+//! | [`Flatten`]       | Recursively removes all group boundaries, flattening into a 1D stream. | `[< (()) [[Hello]] ([{ AA }]) >]:flatten` -> `Hello AA`. This is useful for getting rid of invisible `None`-delimited groups.  |
+//! | [`Encapsulate`]   | Wraps the input inside the given group argument delimiter. | `[< Hello >]:encapsulate[[()]]` -> `(Hello)` |
 //!
 //! ## Notes
 //!
@@ -52,8 +54,11 @@
 //! [`Sequence`]: iter::Sequence
 //! [`Enumerate`]: state::Enumerate
 //! [`Concatenate`]: string::Concatenate
+//! [`ToString`]: string::ToString
 //! [`Case`]: string::Case
 //! [`CaseStyle`]: string::CaseStyle
+//! [`Flatten`]: structure::Flatten
+//! [`Encapsulate`]: structure::Encapsulate
 //! [`iter`]: crate::iter
 //! [`string`]: crate::string
 //! [`structure`]: crate::structure
