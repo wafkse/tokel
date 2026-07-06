@@ -110,7 +110,7 @@ impl Pass for Intersperse {
     ) -> syn::Result<TokenStream> {
         let mut target_output = TokenStream::new();
 
-        let mut target_iter = input.into_iter().into_iter().peekable();
+        let mut target_iter = input.into_iter().peekable();
 
         while let Some(target_tree) = target_iter.next() {
             let target_list = [
