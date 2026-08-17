@@ -64,6 +64,10 @@ pub trait Pass: Transformer {
     type Argument: Parse;
 
     /// Pass-through an input [token stream] with an appropiate source-parsable argument.
+    ///
+    /// # Errors
+    ///
+    /// The failure mode of this associated function is implementation-dependent.
     fn through(&mut self, input: TokenStream, argument: Self::Argument)
     -> syn::Result<TokenStream>;
 }
@@ -177,12 +181,9 @@ impl fmt::Debug for Registry {
 
         for (entry_key, entry_transformer) in target_value {
             // NOTE: We don't know anything about the Transformer but its address, so let's mention it.
-            let target_value = &format_args!(
-                "<transformer at {:#x}>",
-                ptr::from_ref(entry_transformer).addr()
-            );
+            let address = ptr::from_ref(entry_transformer).addr();
 
-            target_state.entry(entry_key, target_value);
+            target_state.entry(entry_key, &format_args!("<transformer at {address:#x}>"));
         }
 
         target_state.finish()
