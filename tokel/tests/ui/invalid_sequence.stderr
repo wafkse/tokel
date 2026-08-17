@@ -1,0 +1,5 @@
+error: expected integer literal
+ --> tests/ui/invalid_sequence.rs:2:45
+  |
+2 |     const VALUE: usize = [< >]:sequence[[1...3]];
+  |                                             ^

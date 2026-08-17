@@ -1,0 +1,5 @@
+error: unsupported case, supported ones are: `pascal`, `camel`, `snake`, `upper`, `lower`
+ --> tests/ui/unsupported_case.rs:2:44
+  |
+2 |     const VALUE: usize = [< value >]:case[[kebab]];
+  |                                            ^^^^^

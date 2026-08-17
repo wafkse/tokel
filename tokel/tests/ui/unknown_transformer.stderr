@@ -1,0 +1,5 @@
+error: no such transformer `missing_transformer`
+ --> tests/ui/unknown_transformer.rs:3:42
+  |
+3 |         const VALUE: usize = [< value >]:missing_transformer;
+  |                                          ^^^^^^^^^^^^^^^^^^^

@@ -1,0 +1,9 @@
+error: unexpected end of input, expected integer literal
+ --> tests/ui/missing_take_argument.rs:1:1
+  |
+1 | / tokel::stream! {
+2 | |     const VALUE: usize = [< value >]:take;
+3 | | }
+  | |_^
+  |
+  = note: this error originates in the macro `tokel::stream` (in Nightly builds, run with -Z macro-backtrace for more info)

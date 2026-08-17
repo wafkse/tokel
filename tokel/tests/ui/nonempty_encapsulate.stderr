@@ -1,0 +1,5 @@
+error: unexpected token
+ --> tests/ui/nonempty_encapsulate.rs:2:52
+  |
+2 |     const VALUE: usize = [< value >]:encapsulate[[(x)]];
+  |                                                    ^
