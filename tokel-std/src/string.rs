@@ -106,9 +106,9 @@ impl Pass for Concatenate {
                     Some(TokenTree::Ident(..) | TokenTree::Literal(..) | TokenTree::Group(..)) => {
                         match inner_iter.next() {
                             Some(TokenTree::Ident(ident_start)) => {
-                                let ref mut ident_str = String::new();
+                                let mut ident_str = String::new();
 
-                                let ref mut ident_tokens = TokenStream::new();
+                                let mut ident_tokens = TokenStream::new();
 
                                 ident_str.push_str(ident_start.to_string().as_str());
                                 ident_tokens
@@ -128,7 +128,7 @@ impl Pass for Concatenate {
                                     ident_str.push_str(ident_extra.to_string().as_str());
                                 }
 
-                                let mut ident = syn::parse_str::<Ident>(ident_str).ok()?;
+                                let mut ident = syn::parse_str::<Ident>(&ident_str).ok()?;
 
                                 ident.set_span(ident_tokens.span());
 
@@ -222,12 +222,10 @@ impl Parse for CaseStyle {
             "snake" => Ok(Self::Snake),
             "upper" => Ok(Self::Upper),
             "lower" => Ok(Self::Lower),
-            _ => {
-                return Err(syn::Error::new_spanned(
-                    case_ident,
-                    "unsupported case, supported ones are: `pascal`, `camel`, `snake`, `upper`, `lower`",
-                ));
-            }
+            _ => Err(syn::Error::new_spanned(
+                case_ident,
+                "unsupported case, supported ones are: `pascal`, `camel`, `snake`, `upper`, `lower`",
+            )),
         }
     }
 }
@@ -268,7 +266,7 @@ impl Pass for Case {
                                     apply_case(lit.value.to_string(), case).as_str(),
                                 )?,
 
-                                lit @ _ => lit.into_token_stream(),
+                                lit => lit.into_token_stream(),
                             }
                         }
                         TokenTree::Ident(target_ident) => TokenStream::from_str(
@@ -294,7 +292,7 @@ impl Pass for Case {
                             .map(TokenTree::Group)
                             .map(ToTokens::into_token_stream)?,
 
-                        target_tree @ _ => target_tree.into_token_stream(),
+                        target_tree @ TokenTree::Punct(_) => target_tree.into_token_stream(),
                     };
 
                     acc.extend(target_output);
@@ -334,9 +332,7 @@ impl Pass for ToString {
             fn next(&mut self) -> Option<Self::Item> {
                 let Self(inner_iter) = self;
 
-                let Some(token_tree) = inner_iter.next() else {
-                    return None;
-                };
+                let token_tree = inner_iter.next()?;
 
                 Some(match token_tree {
                     TokenTree::Group(group) => {

@@ -45,10 +45,7 @@
 //! - `[< a b c >]:repeat[[[< 2 1 >]:count]]` ->`a b c a b c`
 //! - `[< >]:sequence[[[< 1 4 >]:reverse:take[[1]]..4]]` ->`3 4 5 6`
 
-use std::{
-    iter,
-    ops::{Range, RangeInclusive},
-};
+use std::ops::{Range, RangeInclusive};
 
 use proc_macro2::{Literal, TokenStream, TokenTree};
 
@@ -115,7 +112,7 @@ impl Pass for Intersperse {
         while let Some(target_tree) = target_iter.next() {
             let target_list = [
                 Some(target_tree),
-                if let Some(..) = target_iter.peek() {
+                if target_iter.peek().is_some() {
                     let intersperse_tree = intersperse_tree.clone();
 
                     Some(intersperse_tree)
@@ -147,7 +144,7 @@ impl Pass for PushLeft {
     type Argument = TokenStream;
 
     fn through(&mut self, input: TokenStream, left: Self::Argument) -> syn::Result<TokenStream> {
-        Ok(iter::chain(left, input).collect::<TokenStream>())
+        Ok(left.into_iter().chain(input).collect::<TokenStream>())
     }
 }
 
@@ -191,7 +188,7 @@ impl Pass for PushRight {
     type Argument = TokenStream;
 
     fn through(&mut self, input: TokenStream, right: Self::Argument) -> syn::Result<TokenStream> {
-        Ok(iter::chain(input, right).collect::<TokenStream>())
+        Ok(input.into_iter().chain(right).collect::<TokenStream>())
     }
 }
 
@@ -367,13 +364,13 @@ impl Pass for Sequence {
         input: TokenStream,
         target_range: Self::Argument,
     ) -> syn::Result<TokenStream> {
-        let _: syn::parse::Nothing = syn::parse2(input)?;
-
         fn fold_fn(mut target_output: TokenStream, target_literal: Literal) -> TokenStream {
             target_output.extend(target_literal.into_token_stream());
 
             target_output
         }
+
+        let _: syn::parse::Nothing = syn::parse2(input)?;
 
         Ok(match target_range {
             SequenceRange::Inclusive(range_inclusive) => range_inclusive

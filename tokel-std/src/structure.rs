@@ -57,7 +57,7 @@ impl Pass for Flatten {
             for target_tree in target_stream {
                 match target_tree {
                     TokenTree::Group(target_group) => {
-                        target_output.extend(flatten(target_group.stream()))
+                        target_output.extend(flatten(target_group.stream()));
                     }
                     flat_tree => target_output.extend(iter::once(flat_tree)),
                 }
