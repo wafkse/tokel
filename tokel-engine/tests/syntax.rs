@@ -1,12 +1,34 @@
 use proc_macro2::Delimiter;
 use quote::quote;
+use syn::token::Bracket;
 use tokel_engine::syntax::*;
+
+fn elements(stream: &TokelStream) -> &[Element] {
+    let TokelStream(elements) = stream;
+
+    elements
+}
+
+fn pipes(pipeline: &Pipeline) -> &[Pipe] {
+    let Pipeline(pipes) = pipeline;
+
+    pipes
+}
+
+fn argument_stream(argument: &((Bracket, Bracket), TokelStream)) -> &TokelStream {
+    let (_, stream) = argument;
+
+    stream
+}
 
 #[test]
 fn parse_empty_stream() {
     let input = quote! {};
     let ast: TokelStream = syn::parse2(input).unwrap();
-    assert!(ast.0.is_empty(), "Stream should have exactly 0 elements");
+    assert!(
+        elements(&ast).is_empty(),
+        "Stream should have exactly 0 elements"
+    );
 }
 
 #[test]
@@ -15,9 +37,9 @@ fn parse_standard_rust_tokens() {
     let ast: TokelStream = syn::parse2(input).unwrap();
 
     // `pub`, `fn`, `hello`, `()`, `{}`
-    assert_eq!(ast.0.len(), 5);
+    assert_eq!(elements(&ast).len(), 5);
 
-    for element in ast.0 {
+    for element in elements(&ast) {
         match element {
             Element::Tree(_) => {}
             _ => panic!("Expected only standard trees, found an expansion block!"),
@@ -30,12 +52,16 @@ fn parse_simple_chevron_block() {
     let input = quote! { [< a b c >] };
     let ast: TokelStream = syn::parse2(input).unwrap();
 
-    assert_eq!(ast.0.len(), 1, "Should parse as exactly one element");
+    assert_eq!(
+        elements(&ast).len(),
+        1,
+        "Should parse as exactly one element"
+    );
 
-    match &ast.0[0] {
+    match &elements(&ast)[0] {
         Element::Block { block, pipeline } => {
             // Assert the inner block parsed 3 elements (a, b, c)
-            assert_eq!(block.stream.0.len(), 3);
+            assert_eq!(elements(&block.stream).len(), 3);
             // Assert there is no pipeline
             assert!(pipeline.is_none());
         }
@@ -48,26 +74,26 @@ fn parse_block_with_pipeline() {
     let input = quote! { [< x >]:case:append[[_suffix]] };
     let ast: TokelStream = syn::parse2(input).unwrap();
 
-    match &ast.0[0] {
+    match &elements(&ast)[0] {
         Element::Block {
             block: _,
             pipeline: Some(pipeline),
         } => {
-            assert_eq!(pipeline.0.len(), 2);
+            assert_eq!(pipes(pipeline).len(), 2);
 
             // First transformer: `case`
-            assert_eq!(pipeline.0[0].name.to_string(), "case");
-            assert!(pipeline.0[0].argument.is_none());
+            assert_eq!(pipes(pipeline)[0].name.to_string(), "case");
+            assert!(pipes(pipeline)[0].argument.is_none());
 
             // Second transformer: `append`
-            assert_eq!(pipeline.0[1].name.to_string(), "append");
+            assert_eq!(pipes(pipeline)[1].name.to_string(), "append");
 
             // Ensure arguments parsed correctly
-            let args = pipeline.0[1]
+            let args = pipes(pipeline)[1]
                 .argument
                 .as_ref()
                 .expect("Expected args for append");
-            assert_eq!(args.1.0.len(), 1); // `_suffix`
+            assert_eq!(elements(argument_stream(args)).len(), 1); // `_suffix`
         }
         _ => panic!("Expected an Element::Block with a Pipeline"),
     }
@@ -79,22 +105,22 @@ fn parse_nested_blocks() {
     let ast: TokelStream = syn::parse2(input).unwrap();
 
     // Outer Block
-    match &ast.0[0] {
+    match &elements(&ast)[0] {
         Element::Block {
             block: outer_block,
             pipeline: Some(outer_pipeline),
         } => {
-            assert_eq!(outer_pipeline.0[0].name.to_string(), "second");
+            assert_eq!(pipes(outer_pipeline)[0].name.to_string(), "second");
 
             // Inner Block
-            assert_eq!(outer_block.stream.0.len(), 1);
-            match &outer_block.stream.0[0] {
+            assert_eq!(elements(&outer_block.stream).len(), 1);
+            match &elements(&outer_block.stream)[0] {
                 Element::Block {
                     block: inner_block,
                     pipeline: Some(inner_pipeline),
                 } => {
-                    assert_eq!(inner_block.stream.0.len(), 1); // `inner`
-                    assert_eq!(inner_pipeline.0[0].name.to_string(), "first");
+                    assert_eq!(elements(&inner_block.stream).len(), 1); // `inner`
+                    assert_eq!(pipes(inner_pipeline)[0].name.to_string(), "first");
                 }
                 _ => panic!("Expected a nested Element::Block"),
             }
@@ -109,13 +135,13 @@ fn parse_recursive_group_traversal() {
     let input = quote! { ( [< target >]:transform ) };
     let ast: TokelStream = syn::parse2(input).unwrap();
 
-    assert_eq!(ast.0.len(), 1);
+    assert_eq!(elements(&ast).len(), 1);
 
-    match &ast.0[0] {
+    match &elements(&ast)[0] {
         Element::Tree(TokelTree::Group(group)) => {
             assert_eq!(group.delimiter, Delimiter::Parenthesis);
-            assert_eq!(group.stream.0.len(), 1);
-            assert!(matches!(group.stream.0[0], Element::Block { .. }));
+            assert_eq!(elements(&group.stream).len(), 1);
+            assert!(matches!(elements(&group.stream)[0], Element::Block { .. }));
         }
         _ => panic!("Expected an Element::Tree(TokelTree::Group)"),
     }
@@ -127,9 +153,9 @@ fn parse_block_with_mixed_contents() {
     let input = quote! { [< let x = [< inner >]; >] };
     let ast: TokelStream = syn::parse2(input).unwrap();
 
-    match &ast.0[0] {
+    match &elements(&ast)[0] {
         Element::Block { block, .. } => {
-            let inner_elements = &block.stream.0;
+            let inner_elements = &elements(&block.stream);
             assert_eq!(inner_elements.len(), 5);
 
             assert!(matches!(
@@ -162,11 +188,11 @@ fn parse_double_bracket_lookalike_ignore() {
 
     // It should parse as a standard TokelTree::Group (outer bracket)
     // containing two TokelTree::Groups (inner brackets) separated by a comma.
-    assert_eq!(ast.0.len(), 1);
-    match &ast.0[0] {
+    assert_eq!(elements(&ast).len(), 1);
+    match &elements(&ast)[0] {
         Element::Tree(TokelTree::Group(group)) => {
             assert_eq!(group.delimiter, Delimiter::Bracket);
-            assert_eq!(group.stream.0.len(), 3); // `[1, 2]`, `,`, `[3, 4]`
+            assert_eq!(elements(&group.stream).len(), 3); // `[1, 2]`, `,`, `[3, 4]`
         }
         _ => panic!("Expected a standard array grouping, not an expansion block"),
     }
@@ -179,17 +205,17 @@ fn parse_looks_like_block_but_missing_gt() {
     let input = quote! { [<MyType as Trait>::Assoc] };
     let ast: TokelStream = syn::parse2(input).unwrap();
 
-    assert_eq!(ast.0.len(), 1);
+    assert_eq!(elements(&ast).len(), 1);
 
     // Because the inner token stream of the bracket DOES NOT end in `>`,
     // it must fall back to a standard `TokelTree::Group`.
-    match &ast.0[0] {
+    match &elements(&ast)[0] {
         Element::Tree(TokelTree::Group(group)) => {
             assert_eq!(group.delimiter, Delimiter::Bracket);
             // Inside the standard group, we should have `<`, `MyType`, `as`, etc.
-            assert_eq!(group.stream.0.len(), 8);
+            assert_eq!(elements(&group.stream).len(), 8);
             assert!(
-                matches!(group.stream.0[0], Element::Tree(TokelTree::Punct(ref p)) if p.as_char() == '<')
+                matches!(elements(&group.stream)[0], Element::Tree(TokelTree::Punct(ref p)) if p.as_char() == '<')
             );
         }
         _ => panic!("Parser incorrectly interpreted a path-in-array as an expansion block!"),
@@ -203,14 +229,14 @@ fn parse_looks_like_block_but_missing_lt() {
     let input = quote! { [ T::Assoc > ] };
     let ast: TokelStream = syn::parse2(input).unwrap();
 
-    assert_eq!(ast.0.len(), 1);
+    assert_eq!(elements(&ast).len(), 1);
 
-    match &ast.0[0] {
+    match &elements(&ast)[0] {
         Element::Tree(TokelTree::Group(group)) => {
             assert_eq!(group.delimiter, Delimiter::Bracket);
             // We ensure it didn't accidentally consume the `>` into the void.
             assert!(matches!(
-                group.stream.0.last().unwrap(),
+                elements(&group.stream).last().unwrap(),
                 Element::Tree(TokelTree::Punct(p)) if p.as_char() == '>'
             ));
         }
@@ -229,11 +255,19 @@ fn parse_pipeline_lookalike_on_standard_group() {
     let ast: TokelStream = syn::parse2(input).unwrap();
 
     // Should parse as THREE separate elements: the Group `[]`, the Punct `:`, the Ident `transform`
-    assert_eq!(ast.0.len(), 3);
+    assert_eq!(elements(&ast).len(), 3);
 
-    assert!(matches!(ast.0[0], Element::Tree(TokelTree::Group(_))));
-    assert!(matches!(ast.0[1], Element::Tree(TokelTree::Punct(ref p)) if p.as_char() == ':'));
-    assert!(matches!(ast.0[2], Element::Tree(TokelTree::Ident(_))));
+    assert!(matches!(
+        elements(&ast)[0],
+        Element::Tree(TokelTree::Group(_))
+    ));
+    assert!(
+        matches!(elements(&ast)[1], Element::Tree(TokelTree::Punct(ref p)) if p.as_char() == ':')
+    );
+    assert!(matches!(
+        elements(&ast)[2],
+        Element::Tree(TokelTree::Ident(_))
+    ));
 }
 
 #[test]
@@ -243,13 +277,13 @@ fn parse_valid_block_with_complex_inner_rust_code() {
     let input = quote! { [< HashMap::<String, Vec<u8>>::new() >] };
     let ast: TokelStream = syn::parse2(input).unwrap();
 
-    match &ast.0[0] {
+    match &elements(&ast)[0] {
         Element::Block { block, pipeline } => {
             assert!(pipeline.is_none());
 
             // The inner stream should be `HashMap`, `::`, `<`, `String`, `,`, `Vec`, `<`, `u8`, `>`, `>`, `::`, `new`, `()`.
             // If the parser stopped at the first `>`, this assertion will fail.
-            let inner = &block.stream.0;
+            let inner = &elements(&block.stream);
 
             // Verify the last tokens before the closing `>` of the block are `::`, `new`, `()`
             assert!(
@@ -269,26 +303,27 @@ fn parse_nested_pipeline_arguments() {
     let input = quote! { [< main >]:append[[ [< suffix >]:case ]] };
     let ast: TokelStream = syn::parse2(input).unwrap();
 
-    match &ast.0[0] {
+    match &elements(&ast)[0] {
         Element::Block {
             pipeline: Some(pipeline),
             ..
         } => {
-            let pipe = &pipeline.0[0];
-            let args_stream = &pipe.argument.as_ref().unwrap().1;
+            let pipe = &pipes(pipeline)[0];
+            let argument = pipe.argument.as_ref().unwrap();
+            let args_stream = argument_stream(argument);
 
             // The argument stream should contain exactly one element: The inner `Element::Block`
-            assert_eq!(args_stream.0.len(), 1);
+            assert_eq!(elements(args_stream).len(), 1);
 
-            match &args_stream.0[0] {
+            match &elements(args_stream)[0] {
                 Element::Block {
                     block: inner_block,
                     pipeline: Some(inner_pipeline),
                 } => {
-                    assert_eq!(inner_pipeline.0[0].name.to_string(), "case");
+                    assert_eq!(pipes(inner_pipeline)[0].name.to_string(), "case");
 
                     // And the inner block contains `suffix`
-                    match &inner_block.stream.0[0] {
+                    match &elements(&inner_block.stream)[0] {
                         Element::Tree(TokelTree::Ident(i)) => assert_eq!(i, "suffix"),
                         _ => panic!("Expected identifier 'suffix'"),
                     }

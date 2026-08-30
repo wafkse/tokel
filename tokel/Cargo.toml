@@ -8,15 +8,14 @@ repository.workspace = true
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
-authors.workspace = true
 license.workspace = true
 
 [dependencies]
-tokel-derive = { version = "0.2.4", path = "../tokel-derive", optional = true }
-tokel-engine = { version = "0.2.4", path = "../tokel-engine", optional = true }
+tokel-derive = { workspace = true, optional = true }
+tokel-engine = { workspace = true, optional = true }
 
 [dev-dependencies]
-trybuild = "1.0"
+trybuild.workspace = true
 
 [features]
 default = ["derive"]

@@ -16,6 +16,7 @@ use crate::transform::Registry;
 /// `TokelStream`s. By default, it is pre-loaded with Tokel's standard built-in
 /// transformers, but it can be customized or strictly sandboxed as needed.
 #[derive(Debug, Default)]
+// NOTE(invariant): This simply wraps around a `Registry`.
 pub struct Session(Registry);
 
 impl Session {

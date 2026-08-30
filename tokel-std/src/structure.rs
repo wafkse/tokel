@@ -74,6 +74,7 @@ impl Pass for Flatten {
 ///
 /// This represents a single delimiter to use for the encapsulation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+// NOTE(invariant): None.
 pub struct EncapsulateGroup(Delimiter);
 
 impl Parse for EncapsulateGroup {

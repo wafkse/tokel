@@ -76,6 +76,7 @@ impl Pass for Concatenate {
     type Argument = Nothing;
 
     fn through(&mut self, input: TokenStream, _: Self::Argument) -> syn::Result<TokenStream> {
+        // NOTE(invariant): None.
         struct ConcatIter(Peekable<<TokenStream as IntoIterator>::IntoIter>);
 
         impl ConcatIter {
@@ -318,6 +319,7 @@ impl Pass for ToString {
     type Argument = syn::parse::Nothing;
 
     fn through(&mut self, input: TokenStream, _: Self::Argument) -> syn::Result<TokenStream> {
+        // NOTE(invariant): None.
         struct ToStringIter(<TokenStream as IntoIterator>::IntoIter);
 
         impl ToStringIter {
@@ -381,6 +383,58 @@ impl Pass for ToString {
     }
 }
 
+/// A transformer that parses string literals back into token streams.
+///
+/// Non-string tokens are preserved. Groups are processed recursively.
+///
+/// # Errors
+///
+/// Returns an error when a string literal does not contain valid Rust tokens.
+///
+/// # Example
+///
+/// `[< "hello_world" >]:unstringify` -> `hello_world`
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Unstringify;
+
+impl Pass for Unstringify {
+    type Argument = Nothing;
+
+    fn through(&mut self, input: TokenStream, _: Self::Argument) -> syn::Result<TokenStream> {
+        fn apply(input: TokenStream) -> syn::Result<TokenStream> {
+            input
+                .into_iter()
+                .try_fold(TokenStream::new(), |mut output, tree| {
+                    let transformed = match tree {
+                        TokenTree::Group(group) => {
+                            let (delimiter, stream, span) =
+                                (group.delimiter(), group.stream(), group.span());
+
+                            let mut group = Group::new(delimiter, apply(stream)?);
+
+                            group.set_span(span);
+                            group.into_token_stream()
+                        }
+                        TokenTree::Literal(literal) => match Lit::new(literal.clone()) {
+                            Lit::Str(string) => TokenStream::from_str(string.value().as_str())
+                                .map_err(|error| {
+                                    syn::Error::new(string.span(), error.to_string())
+                                })?,
+                            _ => literal.into_token_stream(),
+                        },
+                        tree => tree.into_token_stream(),
+                    };
+
+                    output.extend(transformed);
+
+                    Ok(output)
+                })
+        }
+
+        apply(input)
+    }
+}
+
 /// Inserts all `string`-related [`Transformer`]s into the specified [`Registry`].
 ///
 /// # Errors
@@ -402,6 +456,11 @@ pub fn register(registry: &mut Registry) -> Result<(), Box<dyn Transformer>> {
 
     registry
         .try_insert("to_string", ToString)
+        .map_err(Box::new)
+        .map_err(|t| t as Box<dyn Transformer>)?;
+
+    registry
+        .try_insert("unstringify", Unstringify)
         .map_err(Box::new)
         .map_err(|t| t as Box<dyn Transformer>)?;
 

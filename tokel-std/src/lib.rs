@@ -55,6 +55,7 @@
 //! [`Enumerate`]: state::Enumerate
 //! [`Concatenate`]: string::Concatenate
 //! [`ToString`]: string::ToString
+//! [`Unstringify`]: string::Unstringify
 //! [`Case`]: string::Case
 //! [`CaseStyle`]: string::CaseStyle
 //! [`Flatten`]: structure::Flatten

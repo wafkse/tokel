@@ -38,6 +38,7 @@ use tokel_engine::prelude::{Pass, Registry, Transformer};
 ///
 /// The integer is internally an [`u32`], and is incremented with wrapping arithmetic.
 #[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+// NOTE(invariant): The counter is only incremented via the corresponding pass.
 pub struct Enumerate(u32);
 
 impl Pass for Enumerate {
@@ -46,9 +47,9 @@ impl Pass for Enumerate {
     fn through(&mut self, _: TokenStream, _: Self::Argument) -> syn::Result<TokenStream> {
         let Self(enumerate_counter) = self;
 
-        let current_value;
-        (current_value, *enumerate_counter) =
-            (*enumerate_counter, enumerate_counter.wrapping_add(1));
+        let current_value = *enumerate_counter;
+
+        *enumerate_counter = enumerate_counter.wrapping_add(1);
 
         Ok(Literal::u32_unsuffixed(current_value).into_token_stream())
     }

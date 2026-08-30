@@ -94,6 +94,7 @@ where
 ///
 /// Therefore, transformer names registered here should typically be exact,
 /// `snake_case` string literals matching the intended syntax.
+// NOTE(invariant): The internally-stored `HashMap` is an implementation detail.
 pub struct Registry(AHashMap<Cow<'static, str>, Box<dyn Transformer>>);
 
 impl Registry {

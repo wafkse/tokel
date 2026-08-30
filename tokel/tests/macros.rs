@@ -10,6 +10,18 @@ tokel::stream! {
     const SECOND: u32 = [< >]:enumerate;
 }
 
+macro_rules! captured_accessor {
+    ($index:literal) => {
+        tokel::stream! {
+            pub fn [< captured_ $index >]:to_string:flatten:concatenate:unstringify() -> usize {
+                $index
+            }
+        }
+    };
+}
+
+captured_accessor!(31);
+
 #[tokel::attribute(derive([< debug >]:case[[pascal]]))]
 struct AttributeTarget;
 
@@ -20,6 +32,7 @@ fn stream_expands_through_the_public_facade() {
 
     assert_eq!(left, right);
     assert_eq!((FIRST, SECOND), (0, 1));
+    assert_eq!(captured_31(), 31);
 }
 
 #[test]

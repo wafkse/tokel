@@ -25,6 +25,7 @@ impl Transformer for DummyReverse {
         _args: TokenStream,
     ) -> Result<TokenStream, syn::Error> {
         let mut tokens: Vec<_> = input.into_iter().collect();
+
         tokens.reverse();
 
         Ok(tokens.into_iter().collect())
@@ -47,18 +48,27 @@ impl Transformer for DummyAppend {
 
 /// A stateful counter that outputs the current count.
 #[derive(Default, Debug)]
+// NOTE(invariant): None.
 struct DummyCount(usize);
+
 impl Transformer for DummyCount {
     fn transform(
         &mut self,
         _input: TokenStream,
         _args: TokenStream,
     ) -> Result<TokenStream, syn::Error> {
-        let count = self.0;
-        self.0 += 1;
+        let Self(count) = self;
+
+        let current = *count;
+
+        *count += 1;
+
         // Output the number as a raw token
-        let count_str = count.to_string();
+
+        let count_str = current.to_string();
+
         let lit: proc_macro2::Literal = syn::parse_str(&count_str).unwrap();
+
         Ok(quote!(#lit))
     }
 }
@@ -78,6 +88,7 @@ impl Transformer for DummyError {
             .next()
             .map(|t| t.span())
             .unwrap_or_else(proc_macro2::Span::call_site);
+
         Err(syn::Error::new(span, "Deliberate test error"))
     }
 }
@@ -121,6 +132,7 @@ fn test_identity_block_resolution() {
 #[test]
 fn test_single_transformer_with_args() {
     let mut session = Session::empty();
+
     session
         .registry_mut()
         .try_insert("append", DummyAppend)
@@ -143,6 +155,7 @@ fn test_single_transformer_with_args() {
 #[test]
 fn test_pipeline_chaining() {
     let mut session = Session::empty();
+
     session
         .registry_mut()
         .try_insert("append", DummyAppend)
@@ -162,12 +175,14 @@ fn test_pipeline_chaining() {
     let output = ast.expand(&mut session).unwrap();
 
     let expected = quote! { c b a };
+
     assert_streams_eq(output, expected);
 }
 
 #[test]
 fn test_deep_bottom_up_nesting() {
     let mut session = Session::empty();
+
     session
         .registry_mut()
         .try_insert("append", DummyAppend)
@@ -188,12 +203,14 @@ fn test_deep_bottom_up_nesting() {
     let output = ast.expand(&mut session).unwrap();
 
     let expected = quote! { d c a b };
+
     assert_streams_eq(output, expected);
 }
 
 #[test]
 fn test_stateful_session_isolation() {
     let mut session = Session::empty();
+
     session
         .registry_mut()
         .try_insert("count", DummyCount::default())
@@ -225,6 +242,7 @@ fn test_stateful_session_isolation() {
 #[test]
 fn test_transformer_error_propagation() {
     let mut session = Session::empty();
+
     session
         .registry_mut()
         .try_insert("error_out", DummyError)
@@ -266,6 +284,7 @@ fn test_unknown_transformer_error() {
 #[test]
 fn test_nested_arguments() {
     let mut session = Session::empty();
+
     session
         .registry_mut()
         .try_insert("append", DummyAppend)
@@ -286,5 +305,6 @@ fn test_nested_arguments() {
     let output = ast.expand(&mut session).unwrap();
 
     let expected = quote! { A B 2 1 };
+
     assert_streams_eq(output, expected);
 }
