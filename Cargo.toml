@@ -3,7 +3,7 @@ resolver = "3"
 members = ["tokel", "tokel-derive", "tokel-engine", "tokel-std"]
 
 [workspace.package]
-version = "0.2.5"
+version = "0.3.0"
 edition = "2024"
 rust-version = "1.88"
 license = "GPL-3.0-or-later"
@@ -16,9 +16,9 @@ proc-macro2 = "1.0"
 quote = "1.0"
 syn = { version = "2.0", features = ["clone-impls", "parsing", "extra-traits"] }
 trybuild = "1.0"
-tokel-derive = { version = "0.2.4", path = "tokel-derive" }
-tokel-engine = { version = "0.2.4", path = "tokel-engine" }
-tokel-std = { version = "0.2.4", path = "tokel-std" }
+tokel-derive = { version = "0.3.0", path = "tokel-derive" }
+tokel-engine = { version = "0.3.0", path = "tokel-engine" }
+tokel-std = { version = "0.3.0", path = "tokel-std" }
 
 [workspace.lints.rust]
 unstable_features = "forbid"
