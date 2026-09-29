@@ -4,7 +4,7 @@ on:
   pull_request:
   push:
     branches:
-      - main
+      - development
 
 permissions:
   contents: read
@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v7.0.1
+      - uses: actions/checkout@v7
 
       - name: Install stable Rust
         run: |
@@ -58,21 +58,21 @@ jobs:
 
       - name: Install MSRV
         run: |
-          rustup toolchain install 1.88.0 --profile minimal --no-self-update
-          rustup default 1.88.0
+          rustup toolchain install 1.98 --profile minimal --no-self-update
+          rustup default 1.98
 
       - uses: Swatinem/rust-cache@v2.9.1
         with:
           shared-key: msrv
 
       - name: Check MSRV
-        run: cargo +1.88.0 check --workspace --all-targets
+        run: cargo +1.98 check --workspace --all-targets
 
   dependency-policy:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v7.0.1
+      - uses: actions/checkout@v7
 
       - uses: EmbarkStudios/cargo-deny-action@v2.1.1
 
@@ -80,7 +80,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v7.0.1
+      - uses: actions/checkout@v7
 
       - name: Check semver
         uses: obi1kenobi/cargo-semver-checks-action@v2
@@ -89,17 +89,17 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v7.0.1
+      - uses: actions/checkout@v7
 
       - name: Install stable Rust
         run: |
           rustup toolchain install stable --profile minimal --component llvm-tools-preview --no-self-update
           rustup default stable
 
-      - uses: Swatinem/rust-cache@v2.9.1
+      - uses: Swatinem/rust-cache@v2
 
       - name: Install cargo-llvm-cov
-        uses: taiki-e/install-action@v2.85.5
+        uses: taiki-e/install-action@v2
         with:
           tool: cargo-llvm-cov
 
@@ -107,7 +107,7 @@ jobs:
         run: cargo +stable llvm-cov --workspace --all-features --lcov --output-path lcov.info
 
       - name: Upload coverage
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-lcov
           path: lcov.info
