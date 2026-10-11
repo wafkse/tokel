@@ -1,0 +1,5 @@
+error: cannot read environment variable `TOKEL_TEST_VARIABLE_THAT_DOES_NOT_EXIST`: environment variable not found
+ --> tests/ui/missing_environment.rs:2:44
+  |
+2 |     const VALUE: &str = [< >]:environment[["TOKEL_TEST_VARIABLE_THAT_DOES_NOT_EXIST"]];
+  |                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

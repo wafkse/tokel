@@ -43,7 +43,7 @@ use std::{
     str::FromStr,
 };
 
-use proc_macro2::{Group, Ident, Literal, TokenStream, TokenTree};
+use proc_macro2::{Group, Ident, Literal, Span, TokenStream, TokenTree};
 
 use quote::ToTokens;
 
@@ -386,6 +386,7 @@ impl Pass for ToString {
 /// A transformer that parses string literals back into token streams.
 ///
 /// Non-string tokens are preserved. Groups are processed recursively.
+/// Parsed tokens, including those inside parsed groups, inherit the source string's span.
 ///
 /// # Errors
 ///
@@ -401,6 +402,27 @@ impl Pass for Unstringify {
     type Argument = Nothing;
 
     fn through(&mut self, input: TokenStream, _: Self::Argument) -> syn::Result<TokenStream> {
+        /// Preserve the source string's span on every parsed token and group.
+        fn respan(input: TokenStream, span: Span) -> TokenStream {
+            input
+                .into_iter()
+                .map(|target_tree| {
+                    let mut tree = match target_tree {
+                        TokenTree::Group(group) => TokenTree::Group(Group::new(
+                            group.delimiter(),
+                            respan(group.stream(), span),
+                        )),
+                        tree => tree,
+                    };
+
+                    tree.set_span(span);
+
+                    tree
+                })
+                .collect()
+        }
+
+        /// Parse string literals while preserving existing token and group spans.
         fn apply(input: TokenStream) -> syn::Result<TokenStream> {
             input
                 .into_iter()
@@ -417,6 +439,7 @@ impl Pass for Unstringify {
                         }
                         TokenTree::Literal(literal) => match Lit::new(literal.clone()) {
                             Lit::Str(string) => TokenStream::from_str(string.value().as_str())
+                                .map(|stream| respan(stream, string.span()))
                                 .map_err(|error| {
                                     syn::Error::new(string.span(), error.to_string())
                                 })?,

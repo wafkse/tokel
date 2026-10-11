@@ -30,6 +30,8 @@
 //! | [`Enumerate`]     | Stateful generator yielding an incrementing `u32` literal. | `[< >]:enumerate` -> `0` |
 //! | [`Concatenate`]   | Concatenates text representations of tokens into a single `Ident` or string literal. | `[< hello _ world >]:concatenate` -> `hello_world` |
 //! | [`ToString`]      | Stringifies arbitrary tokens into string literals. | `[< hello _ world >]:to_string` -> `"hello" "_" "world"` |
+//! | [`Unstringify`]   | Parses string literals into tokens, preserving their source spans. | `[< "hello_world" >]:unstringify` -> `hello_world` |
+//! | [`Environment`]   | Reads an environment variable as a string literal. | `[< >]:environment[["CARGO_PKG_NAME"]]` |
 //! | [`Case`]          | Converts identifiers and strings to a target [`CaseStyle`]. | `[< hello_world >]:case[[pascal]]` -> `HelloWorld` |
 //! | [`Flatten`]       | Recursively removes all group boundaries, flattening into a 1D stream. | `[< (()) [[Hello]] ([{ AA }]) >]:flatten` -> `Hello AA`. This is useful for getting rid of invisible `None`-delimited groups.  |
 //! | [`Encapsulate`]   | Wraps the input inside the given group argument delimiter. | `[< Hello >]:encapsulate[[()]]` -> `(Hello)` |
@@ -38,7 +40,7 @@
 //!
 //! * **Arguments:** Transformers can accept other transformer expressions as arguments. Inner expressions are evaluated first.
 //! * **State:** Stateful transformers (like [`Enumerate`]) keep their state for the lifetime of the registered instance.
-//! * **Details:** See the module-level documentation ([`iter`], [`string`], [`structure`], [`state`]) for specific argument types and behaviors.
+//! * **Details:** See the module-level documentation ([`iter`], [`string`], [`structure`], [`state`], [`environment`]) for specific argument types and behaviors.
 //!
 //! [`Transformer`]: tokel_engine::prelude::Transformer
 //! [`Reverse`]: iter::Reverse
@@ -56,6 +58,7 @@
 //! [`Concatenate`]: string::Concatenate
 //! [`ToString`]: string::ToString
 //! [`Unstringify`]: string::Unstringify
+//! [`Environment`]: environment::Environment
 //! [`Case`]: string::Case
 //! [`CaseStyle`]: string::CaseStyle
 //! [`Flatten`]: structure::Flatten
@@ -80,10 +83,12 @@ pub mod structure;
 
 pub mod state;
 
+pub mod environment;
+
 /// Registers all standard `Transformer`s into the provided `Registry`.
 ///
 /// This inserts the default transformers from the `string`, `iter`, `structure`,
-/// and `state` modules.
+/// `state`, and `environment` modules.
 ///
 /// # Errors
 ///
@@ -99,6 +104,8 @@ pub fn register(registry: &mut Registry) -> Result<(), Box<dyn Transformer>> {
     structure::register(registry)?;
 
     state::register(registry)?;
+
+    environment::register(registry)?;
 
     Ok(())
 }

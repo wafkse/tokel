@@ -1,0 +1,5 @@
+error: unexpected token
+ --> tests/ui/nonempty_environment.rs:2:28
+  |
+2 |     const VALUE: &str = [< unexpected >]:environment[["CARGO_PKG_NAME"]];
+  |                            ^^^^^^^^^^
